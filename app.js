@@ -1,24 +1,18 @@
 // PlayShot Studio - Core Application Logic
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize Lucide Icons
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
-  }
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 
-  // 2. Application State
   const state = {
-    uploadedImage: null,
-    imageFileName: '',
-    orientation: 'portrait', // 'portrait' or 'landscape'
-    fitMode: 'cover',        // 'contain' or 'cover'
+    screenshots: [],          // [{ image, dataUrl, fileName }]
+    currentScreenshotIdx: 0,
+    orientation: 'portrait',
+    fitMode: 'cover',
     showDeviceFrame: true,
-    bgType: 'gradient',      // 'solid' or 'gradient'
+    bgType: 'gradient',
     bgColor: '#3b82f6',
     gradStart: '#1e1b4b',
     gradEnd: '#311042',
-    
-    // Top Caption
     captionZH_top: '簡約明瞭的財務圖表',
     fontFamily_top: 'Outfit',
     fontSize_top: 70,
@@ -26,14 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     textColor_top: '#ffffff',
     textMargin_top: 80,
     showTextShadow_top: true,
-    translations_top: {
-      zh: '簡約明瞭的財務圖表',
-      en: 'Simple and Clear Financial Charts',
-      ja: 'シンプルで明快な財務グラフ',
-      ko: '심플하고 명확한 재무 차트'
-    },
-    
-    // Bottom Caption
+    translations_top: { zh: '簡約明瞭的財務圖表', en: 'Simple and Clear Financial Charts', ja: 'シンプルで明快な財務グラフ', ko: '심플하고 명확한 재무 차트' },
     captionZH_bottom: '',
     fontFamily_bottom: 'Outfit',
     fontSize_bottom: 45,
@@ -41,137 +28,117 @@ document.addEventListener('DOMContentLoaded', () => {
     textColor_bottom: '#a5b4fc',
     textMargin_bottom: 80,
     showTextShadow_bottom: true,
-    translations_bottom: {
-      zh: '',
-      en: '',
-      ja: '',
-      ko: ''
-    },
-    
+    translations_bottom: { zh: '', en: '', ja: '', ko: '' },
     currentLangPreview: 'zh',
     zoom: 0.3,
     layoutMode: 'vertical',
     bgPattern: 'none',
     uploadedBgImage: null,
-    bgImageFileName: ''
+    bgImageDataUrl: null,
+    bgImageFileName: '',
+    bgOverlayOpacity: 0,
   };
 
   const textRanges = {
-    phone: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
-    tablet7: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
+    phone:    { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
+    tablet7:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     tablet10: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
   };
 
-  // Device Specifications
   const DEVICE_SPECS = {
-    phone: {
-      name: 'Phone',
-      portrait: { width: 1080, height: 2280 },
-      landscape: { width: 2280, height: 1080 }
-    },
-    tablet7: {
-      name: '7" Tablet',
-      portrait: { width: 1200, height: 1920 },
-      landscape: { width: 1920, height: 1200 }
-    },
-    tablet10: {
-      name: '10" Tablet',
-      portrait: { width: 1600, height: 2560 },
-      landscape: { width: 2560, height: 1600 }
-    }
+    phone:    { portrait: { width: 1080, height: 2280 }, landscape: { width: 2280, height: 1080 } },
+    tablet7:  { portrait: { width: 1200, height: 1920 }, landscape: { width: 1920, height: 1200 } },
+    tablet10: { portrait: { width: 1600, height: 2560 }, landscape: { width: 2560, height: 1600 } }
   };
 
-  // 3. DOM Elements Cache
+  function getCurrentImage() {
+    return state.screenshots[state.currentScreenshotIdx]?.image || null;
+  }
+
   const el = {
-    fileInput: document.getElementById('file-input'),
-    uploadZone: document.getElementById('upload-zone'),
-    uploadPreview: document.getElementById('upload-preview'),
-    imgThumbnail: document.getElementById('img-thumbnail'),
-    btnRemoveImg: document.getElementById('btn-remove-img'),
-    
-    orientationBtns: document.querySelectorAll('[data-orientation]'),
-    selectFitMode: document.getElementById('select-fit-mode'),
-    selectLayoutMode: document.getElementById('select-layout-mode'),
-    toggleDeviceFrame: document.getElementById('toggle-device-frame'),
-    
-    bgTypeRadios: document.querySelectorAll('input[name="bg-type"]'),
-    bgSolidControl: document.getElementById('bg-solid-control'),
-    bgGradientControl: document.getElementById('bg-gradient-control'),
-    colorBg: document.getElementById('color-bg'),
-    colorBgHex: document.getElementById('color-bg-hex'),
-    colorGradStart: document.getElementById('color-grad-start'),
-    colorGradEnd: document.getElementById('color-grad-end'),
-    presetBtns: document.querySelectorAll('.preset-btn'),
-    bgImageControl: document.getElementById('bg-image-control'),
-    bgImageUploadZone: document.getElementById('bg-image-upload-zone'),
-    bgImageInput: document.getElementById('bg-image-input'),
-    bgImagePrompt: document.getElementById('bg-image-prompt'),
-    bgImagePreview: document.getElementById('bg-image-preview'),
-    bgImageThumbnail: document.getElementById('bg-image-thumbnail'),
-    btnRemoveBgImage: document.getElementById('btn-remove-bg-image'),
-    selectBgPattern: document.getElementById('select-bg-pattern'),
-    
-    // Top text elements
-    textCaptionTop: document.getElementById('text-caption-top'),
-    selectFontTop: document.getElementById('select-font-top'),
-    colorTextTop: document.getElementById('color-text-top'),
-    inputFontSizeTop: document.getElementById('input-font-size-top'),
+    fileInput:          document.getElementById('file-input'),
+    uploadZone:         document.getElementById('upload-zone'),
+    uploadPromptEmpty:  document.getElementById('upload-prompt-empty'),
+    uploadPromptAdd:    document.getElementById('upload-prompt-add'),
+    screenshotStrip:    document.getElementById('screenshot-strip'),
+    screenshotCounter:  document.getElementById('screenshot-counter'),
+    stripThumbnails:    document.getElementById('strip-thumbnails'),
+    btnPrevShot:        document.getElementById('btn-prev-shot'),
+    btnNextShot:        document.getElementById('btn-next-shot'),
+    btnAddShot:         document.getElementById('btn-add-shot'),
+    btnRemoveShot:      document.getElementById('btn-remove-shot'),
+    orientationBtns:    document.querySelectorAll('[data-orientation]'),
+    selectFitMode:      document.getElementById('select-fit-mode'),
+    selectLayoutMode:   document.getElementById('select-layout-mode'),
+    toggleDeviceFrame:  document.getElementById('toggle-device-frame'),
+    bgTypeRadios:       document.querySelectorAll('input[name="bg-type"]'),
+    bgSolidControl:     document.getElementById('bg-solid-control'),
+    bgGradientControl:  document.getElementById('bg-gradient-control'),
+    colorBg:            document.getElementById('color-bg'),
+    colorBgHex:         document.getElementById('color-bg-hex'),
+    colorGradStart:     document.getElementById('color-grad-start'),
+    colorGradEnd:       document.getElementById('color-grad-end'),
+    presetBtns:         document.querySelectorAll('.preset-btn'),
+    bgImageControl:     document.getElementById('bg-image-control'),
+    bgImageUploadZone:  document.getElementById('bg-image-upload-zone'),
+    bgImageInput:       document.getElementById('bg-image-input'),
+    bgImagePrompt:      document.getElementById('bg-image-prompt'),
+    bgImagePreview:     document.getElementById('bg-image-preview'),
+    bgImageThumbnail:   document.getElementById('bg-image-thumbnail'),
+    btnRemoveBgImage:   document.getElementById('btn-remove-bg-image'),
+    selectBgPattern:    document.getElementById('select-bg-pattern'),
+    rangeBgOverlay:     document.getElementById('range-bg-overlay'),
+    bgOverlayVal:       document.getElementById('bg-overlay-val'),
+    textCaptionTop:     document.getElementById('text-caption-top'),
+    selectFontTop:      document.getElementById('select-font-top'),
+    colorTextTop:       document.getElementById('color-text-top'),
+    inputFontSizeTop:   document.getElementById('input-font-size-top'),
     inputLineHeightTop: document.getElementById('input-line-height-top'),
-    inputMarginTop: document.getElementById('input-margin-top'),
-    toggleShadowTop: document.getElementById('toggle-shadow-top'),
-
-    // Bottom text elements
-    textCaptionBottom: document.getElementById('text-caption-bottom'),
-    selectFontBottom: document.getElementById('select-font-bottom'),
-    colorTextBottom: document.getElementById('color-text-bottom'),
-    inputFontSizeBottom: document.getElementById('input-font-size-bottom'),
+    inputMarginTop:     document.getElementById('input-margin-top'),
+    toggleShadowTop:    document.getElementById('toggle-shadow-top'),
+    textCaptionBottom:     document.getElementById('text-caption-bottom'),
+    selectFontBottom:      document.getElementById('select-font-bottom'),
+    colorTextBottom:       document.getElementById('color-text-bottom'),
+    inputFontSizeBottom:   document.getElementById('input-font-size-bottom'),
     inputLineHeightBottom: document.getElementById('input-line-height-bottom'),
-    inputMarginBottom: document.getElementById('input-margin-bottom'),
-    toggleShadowBottom: document.getElementById('toggle-shadow-bottom'),
-
-    btnTranslate: document.getElementById('btn-translate'),
-    
-    langTabs: document.querySelectorAll('.lang-tab'),
-    zoomValue: document.getElementById('zoom-value'),
-    btnZoomIn: document.getElementById('btn-zoom-in'),
-    btnZoomOut: document.getElementById('btn-zoom-out'),
-    btnZoomReset: document.getElementById('btn-zoom-reset'),
-    canvasGrid: document.getElementById('canvas-grid'),
-    
-    canvasPhone: document.getElementById('canvas-phone'),
-    canvasTablet7: document.getElementById('canvas-tablet7'),
+    inputMarginBottom:     document.getElementById('input-margin-bottom'),
+    toggleShadowBottom:    document.getElementById('toggle-shadow-bottom'),
+    btnTranslate:   document.getElementById('btn-translate'),
+    btnReset:       document.getElementById('btn-reset'),
+    langTabs:       document.querySelectorAll('.lang-tab'),
+    zoomValue:      document.getElementById('zoom-value'),
+    btnZoomIn:      document.getElementById('btn-zoom-in'),
+    btnZoomOut:     document.getElementById('btn-zoom-out'),
+    btnZoomReset:   document.getElementById('btn-zoom-reset'),
+    canvasGrid:     document.getElementById('canvas-grid'),
+    canvasPhone:    document.getElementById('canvas-phone'),
+    canvasTablet7:  document.getElementById('canvas-tablet7'),
     canvasTablet10: document.getElementById('canvas-tablet10'),
-    
-    resPhone: document.getElementById('res-phone'),
-    resTablet7: document.getElementById('res-tablet7'),
-    resTablet10: document.getElementById('res-tablet10'),
-    
-    btnExportAll: document.getElementById('btn-export-all'),
+    resPhone:       document.getElementById('res-phone'),
+    resTablet7:     document.getElementById('res-tablet7'),
+    resTablet10:    document.getElementById('res-tablet10'),
+    btnExportAll:    document.getElementById('btn-export-all'),
     btnExportSingles: document.querySelectorAll('.btn-export-single'),
-    
-    // Translations UI
-    transZHTop: document.getElementById('trans-zh-top'),
+    transZHTop:    document.getElementById('trans-zh-top'),
     transZHBottom: document.getElementById('trans-zh-bottom'),
-    transENTop: document.getElementById('trans-en-top'),
+    transENTop:    document.getElementById('trans-en-top'),
     transENBottom: document.getElementById('trans-en-bottom'),
-    transJATop: document.getElementById('trans-ja-top'),
+    transJATop:    document.getElementById('trans-ja-top'),
     transJABottom: document.getElementById('trans-ja-bottom'),
-    transKOTop: document.getElementById('trans-ko-top'),
+    transKOTop:    document.getElementById('trans-ko-top'),
     transKOBottom: document.getElementById('trans-ko-bottom'),
-    
     loaderEN: document.getElementById('loader-en'),
     loaderJA: document.getElementById('loader-ja'),
     loaderKO: document.getElementById('loader-ko'),
-    
-    toast: document.getElementById('toast'),
+    toast:        document.getElementById('toast'),
     toastMessage: document.getElementById('toast-message'),
-    toastIcon: document.getElementById('toast-icon')
+    toastIcon:    document.getElementById('toast-icon')
   };
 
-  // 4. Initialization
   init();
 
   function init() {
+    loadState();
     setupEventListeners();
     updateUIState();
     setupDraggableText();
@@ -179,1509 +146,886 @@ document.addEventListener('DOMContentLoaded', () => {
     adjustZoom();
   }
 
-  // 5. Toast Notification System
+  // ── localStorage ──────────────────────────────────────────────
+  let saveTimer = null;
+  function saveState() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem('playshot_v2', JSON.stringify({
+          orientation: state.orientation, fitMode: state.fitMode,
+          showDeviceFrame: state.showDeviceFrame, bgType: state.bgType,
+          bgColor: state.bgColor, gradStart: state.gradStart, gradEnd: state.gradEnd,
+          captionZH_top: state.captionZH_top, fontFamily_top: state.fontFamily_top,
+          fontSize_top: state.fontSize_top, lineHeight_top: state.lineHeight_top,
+          textColor_top: state.textColor_top, textMargin_top: state.textMargin_top,
+          showTextShadow_top: state.showTextShadow_top, translations_top: state.translations_top,
+          captionZH_bottom: state.captionZH_bottom, fontFamily_bottom: state.fontFamily_bottom,
+          fontSize_bottom: state.fontSize_bottom, lineHeight_bottom: state.lineHeight_bottom,
+          textColor_bottom: state.textColor_bottom, textMargin_bottom: state.textMargin_bottom,
+          showTextShadow_bottom: state.showTextShadow_bottom, translations_bottom: state.translations_bottom,
+          currentLangPreview: state.currentLangPreview, zoom: state.zoom,
+          layoutMode: state.layoutMode, bgPattern: state.bgPattern,
+          bgOverlayOpacity: state.bgOverlayOpacity, currentScreenshotIdx: state.currentScreenshotIdx,
+          screenshotDataUrls: state.screenshots.map(s => ({ dataUrl: s.dataUrl, fileName: s.fileName })),
+          bgImageDataUrl: state.bgImageDataUrl,
+        }));
+      } catch (e) { /* 儲存空間不足時靜默忽略 */ }
+    }, 500);
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem('playshot_v2');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      const keys = [
+        'orientation','fitMode','showDeviceFrame','bgType','bgColor','gradStart','gradEnd',
+        'captionZH_top','fontFamily_top','fontSize_top','lineHeight_top','textColor_top',
+        'textMargin_top','showTextShadow_top','translations_top',
+        'captionZH_bottom','fontFamily_bottom','fontSize_bottom','lineHeight_bottom','textColor_bottom',
+        'textMargin_bottom','showTextShadow_bottom','translations_bottom',
+        'currentLangPreview','zoom','layoutMode','bgPattern','bgOverlayOpacity',
+      ];
+      keys.forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
+
+      // 非同步還原截圖
+      if (saved.screenshotDataUrls?.length) {
+        Promise.all(saved.screenshotDataUrls.map(s => new Promise(resolve => {
+          if (!s?.dataUrl) return resolve(null);
+          const img = new Image();
+          img.onload = () => resolve({ image: img, dataUrl: s.dataUrl, fileName: s.fileName || '' });
+          img.onerror = () => resolve(null);
+          img.src = s.dataUrl;
+        }))).then(results => {
+          state.screenshots = results.filter(Boolean);
+          state.currentScreenshotIdx = Math.min(saved.currentScreenshotIdx || 0, Math.max(0, state.screenshots.length - 1));
+          updateScreenshotStrip();
+          triggerAllRenders();
+        });
+      }
+
+      // 非同步還原背景圖
+      if (saved.bgImageDataUrl) {
+        state.bgImageDataUrl = saved.bgImageDataUrl;
+        const img = new Image();
+        img.onload = () => {
+          state.uploadedBgImage = img;
+          el.bgImageThumbnail.src = saved.bgImageDataUrl;
+          el.bgImagePreview.style.display = 'block';
+          el.bgImagePrompt.style.display = 'none';
+          triggerAllRenders();
+        };
+        img.src = saved.bgImageDataUrl;
+      }
+    } catch (e) { /* 損毀的儲存資料，忽略 */ }
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────
   function showToast(message, type = 'info') {
     el.toastMessage.textContent = message;
     el.toast.className = `toast show ${type}`;
-    
-    // Update Toast Icon
-    let iconName = 'info';
-    if (type === 'success') iconName = 'check-circle';
-    if (type === 'error') iconName = 'alert-triangle';
-    el.toastIcon.setAttribute('data-lucide', iconName);
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons({
-        attrs: { class: 'lucide-icon' },
-        nameAttr: 'data-lucide'
-      });
-    }
-
-    setTimeout(() => {
-      el.toast.classList.remove('show');
-    }, 3000);
+    const icons = { success: 'check-circle', error: 'alert-triangle', info: 'info' };
+    el.toastIcon.setAttribute('data-lucide', icons[type] || 'info');
+    if (typeof lucide !== 'undefined') lucide.createIcons({ attrs: { class: 'lucide-icon' }, nameAttr: 'data-lucide' });
+    clearTimeout(el._toastTimer);
+    el._toastTimer = setTimeout(() => el.toast.classList.remove('show'), 3000);
   }
 
-  // 6. Set Up Event Listeners
-  function setupEventListeners() {
-    let debounceTimerTop = null;
-    let debounceTimerBottom = null;
-    let lastTranslatedTop = state.captionZH_top;
-    let lastTranslatedBottom = state.captionZH_bottom;
+  // ── Screenshot Strip ───────────────────────────────────────────
+  function updateScreenshotStrip() {
+    const count = state.screenshots.length;
+    if (count === 0) {
+      el.screenshotStrip.style.display = 'none';
+      el.uploadPromptEmpty.style.display = 'flex';
+      el.uploadPromptAdd.style.display = 'none';
+      return;
+    }
+    el.uploadPromptEmpty.style.display = 'none';
+    el.uploadPromptAdd.style.display = 'flex';
+    el.screenshotStrip.style.display = 'block';
+    el.screenshotCounter.textContent = `${state.currentScreenshotIdx + 1} / ${count}`;
+    el.btnPrevShot.disabled = state.currentScreenshotIdx === 0;
+    el.btnNextShot.disabled = state.currentScreenshotIdx === count - 1;
 
-    // Screenshot Upload
+    el.stripThumbnails.innerHTML = '';
+    state.screenshots.forEach((s, i) => {
+      const wrap = document.createElement('div');
+      wrap.className = `strip-thumb${i === state.currentScreenshotIdx ? ' active' : ''}`;
+      const img = document.createElement('img');
+      img.src = s.dataUrl;
+      img.alt = s.fileName;
+      const num = document.createElement('span');
+      num.className = 'thumb-num';
+      num.textContent = i + 1;
+      wrap.append(img, num);
+      wrap.addEventListener('click', () => {
+        state.currentScreenshotIdx = i;
+        updateScreenshotStrip();
+        triggerAllRenders();
+        saveState();
+      });
+      el.stripThumbnails.appendChild(wrap);
+    });
+  }
+
+  // ── Event Listeners ────────────────────────────────────────────
+  function setupEventListeners() {
+    let debounceTop = null, debounceBottom = null;
+    let lastTransTop = state.captionZH_top, lastTransBottom = state.captionZH_bottom;
+
+    // 上傳區點擊 / 拖曳
     el.uploadZone.addEventListener('click', (e) => {
-      // Avoid triggering when clicking the delete button
-      if (e.target.closest('#btn-remove-img')) return;
+      if (e.target.closest('#screenshot-strip')) return;
       el.fileInput.click();
     });
-
-    el.fileInput.addEventListener('change', handleFileSelect);
-
-    // Drag and Drop
-    el.uploadZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      el.uploadZone.classList.add('hover');
+    el.fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) processUploadedFiles(Array.from(e.target.files));
     });
-
-    el.uploadZone.addEventListener('dragleave', () => {
-      el.uploadZone.classList.remove('hover');
-    });
-
+    el.uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); el.uploadZone.classList.add('hover'); });
+    el.uploadZone.addEventListener('dragleave', () => el.uploadZone.classList.remove('hover'));
     el.uploadZone.addEventListener('drop', (e) => {
       e.preventDefault();
       el.uploadZone.classList.remove('hover');
-      if (e.dataTransfer.files.length > 0) {
-        processUploadedFile(e.dataTransfer.files[0]);
-      }
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length) processUploadedFiles(files);
     });
 
-    el.btnRemoveImg.addEventListener('click', (e) => {
+    // 截圖導航
+    el.btnPrevShot.addEventListener('click', () => {
+      if (state.currentScreenshotIdx > 0) { state.currentScreenshotIdx--; updateScreenshotStrip(); triggerAllRenders(); saveState(); }
+    });
+    el.btnNextShot.addEventListener('click', () => {
+      if (state.currentScreenshotIdx < state.screenshots.length - 1) { state.currentScreenshotIdx++; updateScreenshotStrip(); triggerAllRenders(); saveState(); }
+    });
+    el.btnAddShot.addEventListener('click', (e) => { e.stopPropagation(); el.fileInput.click(); });
+    el.btnRemoveShot.addEventListener('click', (e) => {
       e.stopPropagation();
-      state.uploadedImage = null;
-      state.imageFileName = '';
+      if (!state.screenshots.length) return;
+      state.screenshots.splice(state.currentScreenshotIdx, 1);
+      state.currentScreenshotIdx = Math.max(0, state.currentScreenshotIdx - 1);
       el.fileInput.value = '';
-      el.uploadPreview.style.display = 'none';
-      el.uploadZone.querySelector('.upload-prompt').style.display = 'flex';
+      updateScreenshotStrip();
       triggerAllRenders();
-      showToast('已移除上傳的截圖', 'info');
+      saveState();
+      showToast('已移除此截圖', 'info');
     });
 
-    // Orientation
-    el.orientationBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        el.orientationBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.orientation = btn.getAttribute('data-orientation');
-        el.canvasGrid.classList.toggle('landscape', state.orientation === 'landscape');
-        updateResolutionLabels();
-        triggerAllRenders();
-      });
-    });
+    // 方向
+    el.orientationBtns.forEach(btn => btn.addEventListener('click', () => {
+      el.orientationBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.orientation = btn.getAttribute('data-orientation');
+      el.canvasGrid.classList.toggle('landscape', state.orientation === 'landscape');
+      updateResolutionLabels();
+      triggerAllRenders(); saveState();
+    }));
 
-    // Fit Mode & Device Frame
-    el.selectFitMode.addEventListener('change', (e) => {
-      state.fitMode = e.target.value;
-      triggerAllRenders();
-    });
+    el.selectFitMode.addEventListener('change', e => { state.fitMode = e.target.value; triggerAllRenders(); saveState(); });
+    el.selectLayoutMode.addEventListener('change', e => { state.layoutMode = e.target.value; triggerAllRenders(); saveState(); });
+    el.toggleDeviceFrame.addEventListener('change', e => { state.showDeviceFrame = e.target.checked; triggerAllRenders(); saveState(); });
 
-    el.selectLayoutMode.addEventListener('change', (e) => {
-      state.layoutMode = e.target.value;
-      triggerAllRenders();
-    });
+    // 背景類型
+    el.bgTypeRadios.forEach(radio => radio.addEventListener('change', e => {
+      state.bgType = e.target.value;
+      document.querySelectorAll('.radio-tab').forEach(l => l.classList.toggle('active', l.querySelector('input').checked));
+      el.bgSolidControl.style.display    = state.bgType === 'solid'     ? 'block' : 'none';
+      el.bgGradientControl.style.display = state.bgType === 'gradient'  ? 'block' : 'none';
+      el.bgImageControl.style.display    = state.bgType === 'image'     ? 'block' : 'none';
+      triggerAllRenders(); saveState();
+    }));
 
-    el.toggleDeviceFrame.addEventListener('change', (e) => {
-      state.showDeviceFrame = e.target.checked;
-      triggerAllRenders();
-    });
-
-    // Background Controls
-    el.bgTypeRadios.forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        state.bgType = e.target.value;
-        document.querySelectorAll('.radio-tab').forEach(label => {
-          label.classList.toggle('active', label.querySelector('input').checked);
-        });
-        if (state.bgType === 'solid') {
-          el.bgSolidControl.style.display = 'block';
-          el.bgGradientControl.style.display = 'none';
-          el.bgImageControl.style.display = 'none';
-        } else if (state.bgType === 'gradient') {
-          el.bgSolidControl.style.display = 'none';
-          el.bgGradientControl.style.display = 'block';
-          el.bgImageControl.style.display = 'none';
-        } else {
-          el.bgSolidControl.style.display = 'none';
-          el.bgGradientControl.style.display = 'none';
-          el.bgImageControl.style.display = 'block';
-        }
-        triggerAllRenders();
-      });
-    });
-
-    el.bgImageUploadZone.addEventListener('click', (e) => {
-      if (e.target.closest('#btn-remove-bg-image')) return;
-      el.bgImageInput.click();
-    });
-
-    el.bgImageInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        processUploadedBgFile(e.target.files[0]);
-      }
-    });
-
-    el.btnRemoveBgImage.addEventListener('click', (e) => {
+    el.bgImageUploadZone.addEventListener('click', e => { if (e.target.closest('#btn-remove-bg-image')) return; el.bgImageInput.click(); });
+    el.bgImageInput.addEventListener('change', e => { if (e.target.files.length) processUploadedBgFile(e.target.files[0]); });
+    el.btnRemoveBgImage.addEventListener('click', e => {
       e.stopPropagation();
-      state.uploadedBgImage = null;
-      state.bgImageFileName = '';
+      state.uploadedBgImage = null; state.bgImageDataUrl = null; state.bgImageFileName = '';
       el.bgImageInput.value = '';
       el.bgImagePreview.style.display = 'none';
       el.bgImagePrompt.style.display = 'flex';
-      triggerAllRenders();
+      triggerAllRenders(); saveState();
       showToast('已移除背景圖片', 'info');
     });
+    el.selectBgPattern.addEventListener('change', e => { state.bgPattern = e.target.value; triggerAllRenders(); saveState(); });
 
-    el.selectBgPattern.addEventListener('change', (e) => {
-      state.bgPattern = e.target.value;
-      triggerAllRenders();
+    el.colorBg.addEventListener('input', e => { state.bgColor = e.target.value; el.colorBgHex.value = e.target.value.toUpperCase(); triggerAllRenders(); saveState(); });
+    el.colorBgHex.addEventListener('input', e => {
+      let v = e.target.value;
+      if (!v.startsWith('#')) v = '#' + v;
+      if (/^#[0-9A-F]{6}$/i.test(v)) { state.bgColor = v; el.colorBg.value = v; triggerAllRenders(); saveState(); }
     });
+    el.colorGradStart.addEventListener('input', e => { state.gradStart = e.target.value; triggerAllRenders(); saveState(); });
+    el.colorGradEnd.addEventListener('input', e => { state.gradEnd = e.target.value; triggerAllRenders(); saveState(); });
+    el.presetBtns.forEach(btn => btn.addEventListener('click', () => {
+      state.gradStart = btn.getAttribute('data-start');
+      state.gradEnd   = btn.getAttribute('data-end');
+      el.colorGradStart.value = state.gradStart;
+      el.colorGradEnd.value   = state.gradEnd;
+      triggerAllRenders(); saveState();
+    }));
 
-    el.colorBg.addEventListener('input', (e) => {
-      state.bgColor = e.target.value;
-      el.colorBgHex.value = e.target.value.toUpperCase();
-      triggerAllRenders();
-    });
-
-    el.colorBgHex.addEventListener('input', (e) => {
-      let val = e.target.value;
-      if (!val.startsWith('#')) val = '#' + val;
-      if (/^#[0-9A-F]{6}$/i.test(val)) {
-        state.bgColor = val;
-        el.colorBg.value = val;
-        triggerAllRenders();
-      }
-    });
-
-    el.colorGradStart.addEventListener('input', (e) => {
-      state.gradStart = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.colorGradEnd.addEventListener('input', (e) => {
-      state.gradEnd = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.presetBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.gradStart = btn.getAttribute('data-start');
-        state.gradEnd = btn.getAttribute('data-end');
-        el.colorGradStart.value = state.gradStart;
-        el.colorGradEnd.value = state.gradEnd;
-        triggerAllRenders();
+    // 暗色遮罩滑桿
+    if (el.rangeBgOverlay) {
+      el.rangeBgOverlay.addEventListener('input', e => {
+        state.bgOverlayOpacity = parseInt(e.target.value) / 100;
+        if (el.bgOverlayVal) el.bgOverlayVal.textContent = `${e.target.value}%`;
+        triggerAllRenders(); saveState();
       });
-    });
+    }
 
-    // Caption & Text Styles (Top)
-    el.textCaptionTop.addEventListener('input', (e) => {
+    // 上方文字（移除舊的 change/blur 重複觸發，只保留 debounced input）
+    el.textCaptionTop.addEventListener('input', e => {
       state.captionZH_top = e.target.value;
       state.translations_top.zh = e.target.value;
       el.transZHTop.value = e.target.value;
-      if (state.currentLangPreview === 'zh') {
-        triggerAllRenders();
-      }
-
-      // Debounce automatic translation
-      clearTimeout(debounceTimerTop);
-      debounceTimerTop = setTimeout(() => {
-        const val = state.captionZH_top.trim();
-        if (val !== lastTranslatedTop) {
-          lastTranslatedTop = val;
-          translateField('top', state.captionZH_top);
-        }
-      }, 1000);
+      if (state.currentLangPreview === 'zh') triggerAllRenders();
+      saveState();
+      clearTimeout(debounceTop);
+      debounceTop = setTimeout(() => {
+        const v = state.captionZH_top.trim();
+        if (v !== lastTransTop) { lastTransTop = v; translateField('top', v); }
+      }, 1500);
     });
+    el.selectFontTop.addEventListener('change', e => { state.fontFamily_top = e.target.value; triggerAllRenders(); saveState(); });
+    el.inputFontSizeTop.addEventListener('input', e => { state.fontSize_top = parseInt(e.target.value) || 50; triggerAllRenders(); saveState(); });
+    el.inputLineHeightTop.addEventListener('input', e => { state.lineHeight_top = parseFloat(e.target.value) || 1.2; triggerAllRenders(); saveState(); });
+    el.colorTextTop.addEventListener('input', e => { state.textColor_top = e.target.value; triggerAllRenders(); saveState(); });
+    el.inputMarginTop.addEventListener('input', e => { state.textMargin_top = parseInt(e.target.value) || 50; triggerAllRenders(); saveState(); });
+    el.toggleShadowTop.addEventListener('change', e => { state.showTextShadow_top = e.target.checked; triggerAllRenders(); saveState(); });
 
-    el.textCaptionTop.addEventListener('change', () => {
-      clearTimeout(debounceTimerTop);
-      const val = state.captionZH_top.trim();
-      if (val !== lastTranslatedTop) {
-        lastTranslatedTop = val;
-        translateField('top', state.captionZH_top);
-      }
-    });
-
-    el.textCaptionTop.addEventListener('blur', () => {
-      clearTimeout(debounceTimerTop);
-      const val = state.captionZH_top.trim();
-      if (val !== lastTranslatedTop) {
-        lastTranslatedTop = val;
-        translateField('top', state.captionZH_top);
-      }
-    });
-
-    el.selectFontTop.addEventListener('change', (e) => {
-      state.fontFamily_top = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.inputFontSizeTop.addEventListener('input', (e) => {
-      state.fontSize_top = parseInt(e.target.value) || 50;
-      triggerAllRenders();
-    });
-
-    el.inputLineHeightTop.addEventListener('input', (e) => {
-      state.lineHeight_top = parseFloat(e.target.value) || 1.2;
-      triggerAllRenders();
-    });
-
-    el.colorTextTop.addEventListener('input', (e) => {
-      state.textColor_top = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.inputMarginTop.addEventListener('input', (e) => {
-      state.textMargin_top = parseInt(e.target.value) || 50;
-      triggerAllRenders();
-    });
-
-    el.toggleShadowTop.addEventListener('change', (e) => {
-      state.showTextShadow_top = e.target.checked;
-      triggerAllRenders();
-    });
-
-    // Caption & Text Styles (Bottom)
-    el.textCaptionBottom.addEventListener('input', (e) => {
+    // 下方文字
+    el.textCaptionBottom.addEventListener('input', e => {
       state.captionZH_bottom = e.target.value;
       state.translations_bottom.zh = e.target.value;
       el.transZHBottom.value = e.target.value;
-      if (state.currentLangPreview === 'zh') {
-        triggerAllRenders();
-      }
-
-      // Debounce automatic translation
-      clearTimeout(debounceTimerBottom);
-      debounceTimerBottom = setTimeout(() => {
-        const val = state.captionZH_bottom.trim();
-        if (val !== lastTranslatedBottom) {
-          lastTranslatedBottom = val;
-          translateField('bottom', state.captionZH_bottom);
-        }
-      }, 1000);
+      if (state.currentLangPreview === 'zh') triggerAllRenders();
+      saveState();
+      clearTimeout(debounceBottom);
+      debounceBottom = setTimeout(() => {
+        const v = state.captionZH_bottom.trim();
+        if (v !== lastTransBottom) { lastTransBottom = v; translateField('bottom', v); }
+      }, 1500);
     });
-
-    el.textCaptionBottom.addEventListener('change', () => {
-      clearTimeout(debounceTimerBottom);
-      const val = state.captionZH_bottom.trim();
-      if (val !== lastTranslatedBottom) {
-        lastTranslatedBottom = val;
-        translateField('bottom', state.captionZH_bottom);
-      }
-    });
-
-    el.textCaptionBottom.addEventListener('blur', () => {
-      clearTimeout(debounceTimerBottom);
-      const val = state.captionZH_bottom.trim();
-      if (val !== lastTranslatedBottom) {
-        lastTranslatedBottom = val;
-        translateField('bottom', state.captionZH_bottom);
-      }
-    });
-
-    el.selectFontBottom.addEventListener('change', (e) => {
-      state.fontFamily_bottom = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.inputFontSizeBottom.addEventListener('input', (e) => {
-      state.fontSize_bottom = parseInt(e.target.value) || 30;
-      triggerAllRenders();
-    });
-
-    el.inputLineHeightBottom.addEventListener('input', (e) => {
-      state.lineHeight_bottom = parseFloat(e.target.value) || 1.2;
-      triggerAllRenders();
-    });
-
-    el.colorTextBottom.addEventListener('input', (e) => {
-      state.textColor_bottom = e.target.value;
-      triggerAllRenders();
-    });
-
-    el.inputMarginBottom.addEventListener('input', (e) => {
-      state.textMargin_bottom = parseInt(e.target.value) || 50;
-      triggerAllRenders();
-    });
-
-    el.toggleShadowBottom.addEventListener('change', (e) => {
-      state.showTextShadow_bottom = e.target.checked;
-      triggerAllRenders();
-    });
+    el.selectFontBottom.addEventListener('change', e => { state.fontFamily_bottom = e.target.value; triggerAllRenders(); saveState(); });
+    el.inputFontSizeBottom.addEventListener('input', e => { state.fontSize_bottom = parseInt(e.target.value) || 30; triggerAllRenders(); saveState(); });
+    el.inputLineHeightBottom.addEventListener('input', e => { state.lineHeight_bottom = parseFloat(e.target.value) || 1.2; triggerAllRenders(); saveState(); });
+    el.colorTextBottom.addEventListener('input', e => { state.textColor_bottom = e.target.value; triggerAllRenders(); saveState(); });
+    el.inputMarginBottom.addEventListener('input', e => { state.textMargin_bottom = parseInt(e.target.value) || 50; triggerAllRenders(); saveState(); });
+    el.toggleShadowBottom.addEventListener('change', e => { state.showTextShadow_bottom = e.target.checked; triggerAllRenders(); saveState(); });
 
     el.btnTranslate.addEventListener('click', translateAllLanguages);
 
-    // Translation Manual Edits (Top)
-    el.transENTop.addEventListener('input', (e) => {
-      state.translations_top.en = e.target.value;
-      if (state.currentLangPreview === 'en') triggerAllRenders();
-    });
-    el.transJATop.addEventListener('input', (e) => {
-      state.translations_top.ja = e.target.value;
-      if (state.currentLangPreview === 'ja') triggerAllRenders();
-    });
-    el.transKOTop.addEventListener('input', (e) => {
-      state.translations_top.ko = e.target.value;
-      if (state.currentLangPreview === 'ko') triggerAllRenders();
-    });
+    // 翻譯面板手動編輯
+    el.transENTop.addEventListener('input', e => { state.translations_top.en = e.target.value; if (state.currentLangPreview === 'en') triggerAllRenders(); saveState(); });
+    el.transJATop.addEventListener('input', e => { state.translations_top.ja = e.target.value; if (state.currentLangPreview === 'ja') triggerAllRenders(); saveState(); });
+    el.transKOTop.addEventListener('input', e => { state.translations_top.ko = e.target.value; if (state.currentLangPreview === 'ko') triggerAllRenders(); saveState(); });
+    el.transENBottom.addEventListener('input', e => { state.translations_bottom.en = e.target.value; if (state.currentLangPreview === 'en') triggerAllRenders(); saveState(); });
+    el.transJABottom.addEventListener('input', e => { state.translations_bottom.ja = e.target.value; if (state.currentLangPreview === 'ja') triggerAllRenders(); saveState(); });
+    el.transKOBottom.addEventListener('input', e => { state.translations_bottom.ko = e.target.value; if (state.currentLangPreview === 'ko') triggerAllRenders(); saveState(); });
 
-    // Translation Manual Edits (Bottom)
-    el.transENBottom.addEventListener('input', (e) => {
-      state.translations_bottom.en = e.target.value;
-      if (state.currentLangPreview === 'en') triggerAllRenders();
-    });
-    el.transJABottom.addEventListener('input', (e) => {
-      state.translations_bottom.ja = e.target.value;
-      if (state.currentLangPreview === 'ja') triggerAllRenders();
-    });
-    el.transKOBottom.addEventListener('input', (e) => {
-      state.translations_bottom.ko = e.target.value;
-      if (state.currentLangPreview === 'ko') triggerAllRenders();
-    });
+    el.langTabs.forEach(tab => tab.addEventListener('click', () => {
+      el.langTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      state.currentLangPreview = tab.getAttribute('data-lang');
+      triggerAllRenders(); saveState();
+    }));
 
-    // Preview Language Selection
-    el.langTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        el.langTabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        state.currentLangPreview = tab.getAttribute('data-lang');
-        triggerAllRenders();
-      });
-    });
-
-    // Zoom Controls
-    el.btnZoomIn.addEventListener('click', () => {
-      state.zoom = Math.min(state.zoom + 0.05, 0.8);
-      adjustZoom();
-    });
-
-    el.btnZoomOut.addEventListener('click', () => {
-      state.zoom = Math.max(state.zoom - 0.05, 0.1);
-      adjustZoom();
-    });
-
+    el.btnZoomIn.addEventListener('click', () => { state.zoom = Math.min(state.zoom + 0.05, 0.8); adjustZoom(); saveState(); });
+    el.btnZoomOut.addEventListener('click', () => { state.zoom = Math.max(state.zoom - 0.05, 0.1); adjustZoom(); saveState(); });
     el.btnZoomReset.addEventListener('click', () => {
-      // Auto scale fitting the window height
-      const gridHeight = el.canvasGrid.clientHeight;
-      const canvasHeight = state.orientation === 'portrait' ? 2560 : 1600; // max device height
-      const targetZoom = Math.min(Math.max((gridHeight - 120) / canvasHeight, 0.1), 0.6);
-      state.zoom = parseFloat(targetZoom.toFixed(2));
-      adjustZoom();
+      const h = el.canvasGrid.clientHeight;
+      const ch = state.orientation === 'portrait' ? 2560 : 1600;
+      state.zoom = parseFloat(Math.min(Math.max((h - 120) / ch, 0.1), 0.6).toFixed(2));
+      adjustZoom(); saveState();
     });
 
-    // Export Buttons
-    el.btnExportSingles.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const device = btn.getAttribute('data-device');
-        exportSingleImage(device);
-      });
-    });
-
+    el.btnExportSingles.forEach(btn => btn.addEventListener('click', () => exportSingleImage(btn.getAttribute('data-device'))));
     el.btnExportAll.addEventListener('click', exportAllZipped);
-  }
 
-  // Set up interactive text dragging on Canvas previews
-  function setupDraggableText() {
-    let activeDrag = null; // { deviceKey, field, startY, startMargin, scaleY }
-
-    const devices = ['phone', 'tablet7', 'tablet10'];
-    devices.forEach(deviceKey => {
-      const canvas = document.getElementById(`canvas-${deviceKey}`);
-      if (!canvas) return;
-
-      const handleStart = (clientX, clientY) => {
-        const rect = canvas.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-
-        // Map client coordinates to Canvas internal resolution coordinate space
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const canvasX = (clientX - rect.left) * scaleX;
-        const canvasY = (clientY - rect.top) * scaleY;
-
-        // Check horizontal bounds based on layoutMode
-        let isXInTextArea = false;
-        if (state.layoutMode === 'vertical') {
-          isXInTextArea = canvasX >= 80 && canvasX <= canvas.width - 80;
-        } else if (state.layoutMode === 'left') {
-          isXInTextArea = canvasX >= 80 && canvasX <= canvas.width * 0.4;
-        } else if (state.layoutMode === 'right') {
-          isXInTextArea = canvasX >= canvas.width * 0.6 && canvasX <= canvas.width - 80;
-        }
-        if (!isXInTextArea) return;
-
-        const ranges = textRanges[deviceKey];
-        if (!ranges) return;
-
-        // Check top text range (add 40px padding for easier grabbing)
-        if (ranges.top.y2 > 0 && canvasY >= ranges.top.y1 - 40 && canvasY <= ranges.top.y2 + 40) {
-          activeDrag = {
-            deviceKey,
-            field: 'top',
-            startY: clientY,
-            startMargin: state.textMargin_top,
-            scaleY: scaleY
-          };
-          canvas.style.cursor = 'ns-resize';
-          return;
-        }
-
-        // Check bottom text range
-        if (ranges.bottom.y2 > 0 && canvasY >= ranges.bottom.y1 - 40 && canvasY <= ranges.bottom.y2 + 40) {
-          activeDrag = {
-            deviceKey,
-            field: 'bottom',
-            startY: clientY,
-            startMargin: state.textMargin_bottom,
-            scaleY: scaleY
-          };
-          canvas.style.cursor = 'ns-resize';
-          return;
-        }
-      };
-
-      // Mouse events
-      canvas.addEventListener('mousedown', (e) => {
-        handleStart(e.clientX, e.clientY);
+    if (el.btnReset) {
+      el.btnReset.addEventListener('click', () => {
+        if (!confirm('確定要重設所有設定嗎？截圖、文字、背景都會清除，此操作無法復原。')) return;
+        localStorage.removeItem('playshot_v2');
+        location.reload();
       });
-
-      // Mouse hover feedback
-      canvas.addEventListener('mousemove', (e) => {
-        if (activeDrag) return;
-        
-        const rect = canvas.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const canvasX = (e.clientX - rect.left) * scaleX;
-        const canvasY = (e.clientY - rect.top) * scaleY;
-        
-        let isXInTextArea = false;
-        if (state.layoutMode === 'vertical') {
-          isXInTextArea = canvasX >= 80 && canvasX <= canvas.width - 80;
-        } else if (state.layoutMode === 'left') {
-          isXInTextArea = canvasX >= 80 && canvasX <= canvas.width * 0.4;
-        } else if (state.layoutMode === 'right') {
-          isXInTextArea = canvasX >= canvas.width * 0.6 && canvasX <= canvas.width - 80;
-        }
-
-        const ranges = textRanges[deviceKey];
-        if (!ranges) return;
-
-        const isOverTop = isXInTextArea && ranges.top.y2 > 0 && canvasY >= ranges.top.y1 - 40 && canvasY <= ranges.top.y2 + 40;
-        const isOverBottom = isXInTextArea && ranges.bottom.y2 > 0 && canvasY >= ranges.bottom.y1 - 40 && canvasY <= ranges.bottom.y2 + 40;
-
-        if (isOverTop || isOverBottom) {
-          canvas.style.cursor = 'ns-resize';
-        } else {
-          canvas.style.cursor = 'default';
-        }
-      });
-
-      // Touch events for mobile/tablet previews
-      canvas.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) {
-          handleStart(e.touches[0].clientX, e.touches[0].clientY);
-          if (activeDrag) e.preventDefault();
-        }
-      }, { passive: false });
-    });
-
-    // Global listeners for dragging and releasing
-    window.addEventListener('mousemove', (e) => {
-      if (!activeDrag) return;
-
-      const deltaY = (e.clientY - activeDrag.startY) * activeDrag.scaleY;
-      if (activeDrag.field === 'top') {
-        const newMargin = Math.max(0, Math.round(activeDrag.startMargin + deltaY));
-        state.textMargin_top = newMargin;
-        el.inputMarginTop.value = newMargin;
-      } else {
-        const newMargin = Math.max(0, Math.round(activeDrag.startMargin - deltaY));
-        state.textMargin_bottom = newMargin;
-        el.inputMarginBottom.value = newMargin;
-      }
-      triggerAllRenders();
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (!activeDrag) return;
-      const canvas = document.getElementById(`canvas-${activeDrag.deviceKey}`);
-      if (canvas) canvas.style.cursor = 'default';
-      activeDrag = null;
-    });
-
-    // Touch support for dragging
-    window.addEventListener('touchmove', (e) => {
-      if (!activeDrag) return;
-      if (e.touches.length === 1) {
-        const deltaY = (e.touches[0].clientY - activeDrag.startY) * activeDrag.scaleY;
-        if (activeDrag.field === 'top') {
-          const newMargin = Math.max(0, Math.round(activeDrag.startMargin + deltaY));
-          state.textMargin_top = newMargin;
-          el.inputMarginTop.value = newMargin;
-        } else {
-          const newMargin = Math.max(0, Math.round(activeDrag.startMargin - deltaY));
-          state.textMargin_bottom = newMargin;
-          el.inputMarginBottom.value = newMargin;
-        }
-        triggerAllRenders();
-        e.preventDefault();
-      }
-    }, { passive: false });
-
-    window.addEventListener('touchend', () => {
-      if (!activeDrag) return;
-      activeDrag = null;
-    });
-  }
-
-  // Update UI Inputs to reflect state
-  function updateUIState() {
-    // Top
-    el.textCaptionTop.value = state.captionZH_top;
-    el.selectFontTop.value = state.fontFamily_top;
-    el.colorTextTop.value = state.textColor_top;
-    el.inputFontSizeTop.value = state.fontSize_top;
-    el.inputLineHeightTop.value = state.lineHeight_top;
-    el.inputMarginTop.value = state.textMargin_top;
-    el.toggleShadowTop.checked = state.showTextShadow_top;
-
-    // Bottom
-    el.textCaptionBottom.value = state.captionZH_bottom;
-    el.selectFontBottom.value = state.fontFamily_bottom;
-    el.colorTextBottom.value = state.textColor_bottom;
-    el.inputFontSizeBottom.value = state.fontSize_bottom;
-    el.inputLineHeightBottom.value = state.lineHeight_bottom;
-    el.inputMarginBottom.value = state.textMargin_bottom;
-    el.toggleShadowBottom.checked = state.showTextShadow_bottom;
-
-    // Background
-    el.colorBg.value = state.bgColor;
-    el.colorBgHex.value = state.bgColor.toUpperCase();
-    el.colorGradStart.value = state.gradStart;
-    el.colorGradEnd.value = state.gradEnd;
-
-    // Translation panel
-    el.transZHTop.value = state.captionZH_top;
-    el.transZHBottom.value = state.captionZH_bottom;
-    
-    el.transENTop.value = state.translations_top.en;
-    el.transENBottom.value = state.translations_bottom.en;
-
-    el.transJATop.value = state.translations_top.ja;
-    el.transJABottom.value = state.translations_bottom.ja;
-
-    el.transKOTop.value = state.translations_top.ko;
-    el.transKOBottom.value = state.translations_bottom.ko;
-    
-    updateResolutionLabels();
-    el.selectLayoutMode.value = state.layoutMode;
-  }
-
-  function updateResolutionLabels() {
-    const p = state.orientation;
-    el.resPhone.textContent = `${DEVICE_SPECS.phone[p].width} x ${DEVICE_SPECS.phone[p].height}`;
-    el.resTablet7.textContent = `${DEVICE_SPECS.tablet7[p].width} x ${DEVICE_SPECS.tablet7[p].height}`;
-    el.resTablet10.textContent = `${DEVICE_SPECS.tablet10[p].width} x ${DEVICE_SPECS.tablet10[p].height}`;
-  }
-
-  function adjustZoom() {
-    el.zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
-    document.documentElement.style.setProperty('--zoom-factor', state.zoom);
-  }
-
-  // Handle uploaded file
-  function handleFileSelect(e) {
-    if (e.target.files.length > 0) {
-      processUploadedFile(e.target.files[0]);
     }
   }
 
-  function processUploadedFile(file) {
-    if (!file.type.startsWith('image/')) {
-      showToast('上傳的檔案必須是圖片格式！', 'error');
-      return;
-    }
-
-    state.imageFileName = file.name;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        state.uploadedImage = img;
-        // Setup preview thumbnail
-        el.imgThumbnail.src = event.target.result;
-        el.uploadPreview.style.display = 'block';
-        el.uploadZone.querySelector('.upload-prompt').style.display = 'none';
-        
-        triggerAllRenders();
-        showToast('圖片上傳成功！', 'success');
+  // ── 截圖上傳 ────────────────────────────────────────────────────
+  function processUploadedFiles(files) {
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    if (!imgs.length) { showToast('請選擇圖片格式的檔案', 'error'); return; }
+    let loaded = 0;
+    const startIdx = state.screenshots.length;
+    imgs.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          state.screenshots.push({ image: img, dataUrl: ev.target.result, fileName: file.name });
+          loaded++;
+          if (loaded === imgs.length) {
+            state.currentScreenshotIdx = startIdx;
+            updateScreenshotStrip();
+            triggerAllRenders();
+            saveState();
+            showToast(`已新增 ${loaded} 張截圖`, 'success');
+          }
+        };
+        img.src = ev.target.result;
       };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    });
+    el.fileInput.value = '';
   }
 
   function processUploadedBgFile(file) {
-    if (!file.type.startsWith('image/')) {
-      showToast('上傳的背景檔案必須是圖片格式！', 'error');
-      return;
-    }
-
-    state.bgImageFileName = file.name;
+    if (!file.type.startsWith('image/')) { showToast('背景檔案必須是圖片格式！', 'error'); return; }
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = ev => {
       const img = new Image();
       img.onload = () => {
         state.uploadedBgImage = img;
-        el.bgImageThumbnail.src = event.target.result;
+        state.bgImageDataUrl = ev.target.result;
+        state.bgImageFileName = file.name;
+        el.bgImageThumbnail.src = ev.target.result;
         el.bgImagePreview.style.display = 'block';
         el.bgImagePrompt.style.display = 'none';
-        triggerAllRenders();
+        triggerAllRenders(); saveState();
         showToast('背景圖片上傳成功！', 'success');
       };
-      img.src = event.target.result;
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
   }
 
   function drawBgImageCover(ctx, img, w, h) {
-    const imgRatio = img.width / img.height;
-    const destRatio = w / h;
-    let drawW = w;
-    let drawH = h;
-    let drawX = 0;
-    let drawY = 0;
-    if (imgRatio > destRatio) {
-      drawW = h * imgRatio;
-      drawX = (w - drawW) / 2;
-    } else {
-      drawH = w / imgRatio;
-      drawY = (h - drawH) / 2;
-    }
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    const r = img.width / img.height, dr = w / h;
+    let dw = w, dh = h, dx = 0, dy = 0;
+    if (r > dr) { dw = h * r; dx = (w - dw) / 2; }
+    else { dh = w / r; dy = (h - dh) / 2; }
+    ctx.drawImage(img, dx, dy, dw, dh);
   }
 
-  // 7. Translator Module
+  // ── 翻譯 ────────────────────────────────────────────────────────
   async function translateAllLanguages() {
-    const textTop = state.captionZH_top.trim();
-    const textBottom = state.captionZH_bottom.trim();
-    
-    if (!textTop && !textBottom) {
-      showToast('請先輸入上方或下方中文文字', 'error');
-      return;
-    }
-
+    const top = state.captionZH_top.trim(), bot = state.captionZH_bottom.trim();
+    if (!top && !bot) { showToast('請先輸入上方或下方中文文字', 'error'); return; }
     el.btnTranslate.disabled = true;
     el.btnTranslate.innerHTML = '<i class="spinner"></i> 正在翻譯中...';
-
     const jobs = [
-      { lang: 'en', loader: el.loaderEN, targetElTop: el.transENTop, targetElBottom: el.transENBottom },
-      { lang: 'ja', loader: el.loaderJA, targetElTop: el.transJATop, targetElBottom: el.transJABottom },
-      { lang: 'ko', loader: el.loaderKO, targetElTop: el.transKOTop, targetElBottom: el.transKOBottom }
+      { lang: 'en', loader: el.loaderEN, elTop: el.transENTop, elBot: el.transENBottom },
+      { lang: 'ja', loader: el.loaderJA, elTop: el.transJATop, elBot: el.transJABottom },
+      { lang: 'ko', loader: el.loaderKO, elTop: el.transKOTop, elBot: el.transKOBottom },
     ];
-
-    const promises = jobs.map(async (job) => {
-      job.loader.style.display = 'inline-flex';
+    await Promise.all(jobs.map(async j => {
+      j.loader.style.display = 'inline-flex';
       try {
-        if (textTop) {
-          const transTop = await fetchTranslation(textTop, job.lang);
-          state.translations_top[job.lang] = transTop;
-          job.targetElTop.value = transTop;
-        }
-        if (textBottom) {
-          const transBottom = await fetchTranslation(textBottom, job.lang);
-          state.translations_bottom[job.lang] = transBottom;
-          job.targetElBottom.value = transBottom;
-        }
-      } catch (err) {
-        console.error(`Translation to ${job.lang} failed:`, err);
-        showToast(`翻譯成${job.lang === 'en' ? '英文' : job.lang === 'ja' ? '日文' : '韓文'}失敗，已保留原有文字。`, 'error');
-      } finally {
-        job.loader.style.display = 'none';
-      }
-    });
-
-    await Promise.all(promises);
-
+        if (top) { const t = await fetchTranslation(top, j.lang); state.translations_top[j.lang] = t; j.elTop.value = t; }
+        if (bot) { const t = await fetchTranslation(bot, j.lang); state.translations_bottom[j.lang] = t; j.elBot.value = t; }
+      } catch { showToast(`翻譯到 ${j.lang} 失敗，保留原文`, 'error'); }
+      finally { j.loader.style.display = 'none'; }
+    }));
     el.btnTranslate.disabled = false;
     el.btnTranslate.innerHTML = '<i data-lucide="languages"></i> 一鍵自動翻譯上下文字';
     if (typeof lucide !== 'undefined') lucide.createIcons();
-
-    triggerAllRenders();
+    triggerAllRenders(); saveState();
     showToast('翻譯完成！已更新語系對照表', 'success');
   }
 
-  async function fetchTranslation(text, targetLang) {
-    // Use Google Translate free unofficial Client API (gtx)
-    // Translate from zh-TW (Traditional Chinese)
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('API Response Error');
-    const data = await response.json();
-    
-    // Google Translate returns format: [[[translatedText, sourceText, ...], ...]]
-    if (data && data[0]) {
-      return data[0].map(item => item[0]).join('');
-    }
-    return text; // Fallback to source
+  async function fetchTranslation(text, lang) {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    if (data?.[0]) return data[0].map(i => i[0]).join('');
+    return text;
   }
 
   async function translateField(field, text) {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      const langs = ['en', 'ja', 'ko'];
+    const langs = ['en', 'ja', 'ko'];
+    if (!text) {
       langs.forEach(lang => {
-        if (field === 'top') {
-          state.translations_top[lang] = '';
-          const targetEl = lang === 'en' ? el.transENTop : lang === 'ja' ? el.transJATop : el.transKOTop;
-          if (targetEl) targetEl.value = '';
-        } else {
-          state.translations_bottom[lang] = '';
-          const targetEl = lang === 'en' ? el.transENBottom : lang === 'ja' ? el.transJABottom : el.transKOBottom;
-          if (targetEl) targetEl.value = '';
-        }
+        if (field === 'top') { state.translations_top[lang] = ''; (lang === 'en' ? el.transENTop : lang === 'ja' ? el.transJATop : el.transKOTop).value = ''; }
+        else { state.translations_bottom[lang] = ''; (lang === 'en' ? el.transENBottom : lang === 'ja' ? el.transJABottom : el.transKOBottom).value = ''; }
       });
-      triggerAllRenders();
-      return;
+      triggerAllRenders(); return;
     }
-
-    const jobs = [
-      { lang: 'en', loader: el.loaderEN, targetEl: field === 'top' ? el.transENTop : el.transENBottom },
-      { lang: 'ja', loader: el.loaderJA, targetEl: field === 'top' ? el.transJATop : el.transJABottom },
-      { lang: 'ko', loader: el.loaderKO, targetEl: field === 'top' ? el.transKOTop : el.transKOBottom }
-    ];
-
-    const promises = jobs.map(async (job) => {
-      job.loader.style.display = 'inline-flex';
+    await Promise.all(langs.map(async lang => {
+      const loader = lang === 'en' ? el.loaderEN : lang === 'ja' ? el.loaderJA : el.loaderKO;
+      const targetEl = field === 'top'
+        ? (lang === 'en' ? el.transENTop : lang === 'ja' ? el.transJATop : el.transKOTop)
+        : (lang === 'en' ? el.transENBottom : lang === 'ja' ? el.transJABottom : el.transKOBottom);
+      loader.style.display = 'inline-flex';
       try {
-        const trans = await fetchTranslation(trimmed, job.lang);
-        if (field === 'top') {
-          state.translations_top[job.lang] = trans;
-        } else {
-          state.translations_bottom[job.lang] = trans;
-        }
-        job.targetEl.value = trans;
-      } catch (err) {
-        console.error(`Translation to ${job.lang} failed:`, err);
-      } finally {
-        job.loader.style.display = 'none';
-      }
-    });
-
-    await Promise.all(promises);
-    triggerAllRenders();
+        const t = await fetchTranslation(text, lang);
+        if (field === 'top') state.translations_top[lang] = t;
+        else state.translations_bottom[lang] = t;
+        targetEl.value = t;
+      } catch { /* 行內翻譯失敗靜默忽略 */ }
+      finally { loader.style.display = 'none'; }
+    }));
+    triggerAllRenders(); saveState();
   }
 
-  // 8. Hybrid Text Wrapping Algorithm for Canvas
+  // ── 文字換行 ─────────────────────────────────────────────────────
   function wrapText(ctx, text, maxWidth) {
-    let lines = [];
-    let currentLine = '';
-    
-    // Regex splits English words, spaces, and individual CJK characters
-    const regex = /([a-zA-Z0-9_’'-]+|\s+|[^\s\w])/g;
-    let tokens = [];
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      tokens.push(match[0]);
-    }
-    
+    const lines = [], regex = /([a-zA-Z0-9_''-]+|\s+|[^\s\w])/g;
+    const tokens = []; let m;
+    while ((m = regex.exec(text)) !== null) tokens.push(m[0]);
+    let cur = '';
     for (let i = 0; i < tokens.length; i++) {
-      let token = tokens[i];
-      if (token === '\n') {
-        lines.push(currentLine);
-        currentLine = '';
-        continue;
-      }
-      let testLine = currentLine + token;
-      let metrics = ctx.measureText(testLine);
-      let testWidth = metrics.width;
-      if (testWidth > maxWidth && i > 0) {
-        lines.push(currentLine);
-        currentLine = token.trim() === '' ? '' : token; // skip leading space on new line
-      } else {
-        currentLine = testLine;
-      }
+      const tok = tokens[i];
+      if (tok === '\n') { lines.push(cur); cur = ''; continue; }
+      const test = cur + tok;
+      if (ctx.measureText(test).width > maxWidth && i > 0) { lines.push(cur); cur = tok.trim() ? tok : ''; }
+      else cur = test;
     }
-    if (currentLine) {
-      lines.push(currentLine);
-    }
+    if (cur) lines.push(cur);
     return lines;
   }
 
-  // 9. Canvas Rendering Engine
+  // ── 渲染 ─────────────────────────────────────────────────────────
   function triggerAllRenders() {
-    renderDeviceCanvas('phone', el.canvasPhone);
-    renderDeviceCanvas('tablet7', el.canvasTablet7);
+    renderDeviceCanvas('phone',    el.canvasPhone);
+    renderDeviceCanvas('tablet7',  el.canvasTablet7);
     renderDeviceCanvas('tablet10', el.canvasTablet10);
+  }
+
+  // 中日韓語系強制使用 Noto Sans 對應字型（其他語系尊重使用者設定）
+  function resolveFont(lang, userFont) {
+    if (lang === 'zh') return 'Noto Sans TC';
+    if (lang === 'ja') return 'Noto Sans JP';
+    if (lang === 'ko') return 'Noto Sans KR';
+    return userFont;
   }
 
   function renderDeviceCanvas(deviceKey, canvas, overrideLang = null) {
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
-    const spec = DEVICE_SPECS[deviceKey];
-    const dimensions = spec[state.orientation];
-    const width = dimensions.width;
-    const height = dimensions.height;
+    const dim = DEVICE_SPECS[deviceKey][state.orientation];
+    const W = dim.width, H = dim.height;
+    canvas.width = W; canvas.height = H;
 
-    // Set canvas actual size
-    canvas.width = width;
-    canvas.height = height;
+    const lang = overrideLang || state.currentLangPreview;
+    const topText    = state.translations_top[lang]    || state.translations_top.zh    || '';
+    const bottomText = state.translations_bottom[lang] || state.translations_bottom.zh || '';
+    const uploadedImage = getCurrentImage();
 
-    const currentLang = overrideLang || state.currentLangPreview;
-    
-    // Get text content for Top & Bottom
-    const topText = state.translations_top[currentLang] || state.translations_top.zh || '';
-    const bottomText = state.translations_bottom[currentLang] || state.translations_bottom.zh || '';
-
-    // --- DRAW BACKGROUND ---
+    // ── 背景 ──
     if (state.bgType === 'solid') {
-      ctx.fillStyle = state.bgColor;
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = state.bgColor; ctx.fillRect(0, 0, W, H);
     } else if (state.bgType === 'gradient') {
-      // 135deg linear gradient diagonal
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, state.gradStart);
-      gradient.addColorStop(1, state.gradEnd);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, state.gradStart); g.addColorStop(1, state.gradEnd);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     } else {
-      // Image background
       if (state.uploadedBgImage) {
-        drawBgImageCover(ctx, state.uploadedBgImage, width, height);
+        drawBgImageCover(ctx, state.uploadedBgImage, W, H);
+        if (state.bgOverlayOpacity > 0) { ctx.fillStyle = `rgba(0,0,0,${state.bgOverlayOpacity})`; ctx.fillRect(0, 0, W, H); }
       } else {
-        // Fallback solid color background
-        ctx.fillStyle = '#1e1b4b';
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#1e1b4b'; ctx.fillRect(0, 0, W, H);
       }
     }
 
-    // --- DRAW BACKGROUND DECORATIONS ---
+    // ── 背景裝飾 ──
+    const maxDim = Math.max(W, H);
     if (state.bgPattern === 'mesh') {
-      // Render sleek modern mesh blobs
       ctx.save();
-      const maxDim = Math.max(width, height);
-      
-      // Blob 1: Magenta at top left
-      const rGrad1 = ctx.createRadialGradient(0, 0, 0, 0, 0, maxDim * 0.7);
-      rGrad1.addColorStop(0, 'rgba(236, 72, 153, 0.45)');
-      rGrad1.addColorStop(0.5, 'rgba(236, 72, 153, 0.18)');
-      rGrad1.addColorStop(1, 'rgba(236, 72, 153, 0)');
-      ctx.fillStyle = rGrad1;
-      ctx.fillRect(0, 0, width, height);
-
-      // Blob 2: Indigo at bottom right
-      const rGrad2 = ctx.createRadialGradient(width, height, 0, width, height, maxDim * 0.6);
-      rGrad2.addColorStop(0, 'rgba(99, 102, 241, 0.48)');
-      rGrad2.addColorStop(0.5, 'rgba(99, 102, 241, 0.18)');
-      rGrad2.addColorStop(1, 'rgba(99, 102, 241, 0)');
-      ctx.fillStyle = rGrad2;
-      ctx.fillRect(0, 0, width, height);
-
-      // Blob 3: Emerald at center bottom
-      const rGrad3 = ctx.createRadialGradient(width * 0.35, height, 0, width * 0.35, height, maxDim * 0.5);
-      rGrad3.addColorStop(0, 'rgba(16, 185, 129, 0.38)');
-      rGrad3.addColorStop(0.5, 'rgba(16, 185, 129, 0.15)');
-      rGrad3.addColorStop(1, 'rgba(16, 185, 129, 0)');
-      ctx.fillStyle = rGrad3;
-      ctx.fillRect(0, 0, width, height);
+      [[0,0,'rgba(236,72,153,0.45)','rgba(236,72,153,0.18)',0.7],[W,H,'rgba(99,102,241,0.48)','rgba(99,102,241,0.18)',0.6],[W*0.35,H,'rgba(16,185,129,0.38)','rgba(16,185,129,0.15)',0.5]].forEach(([cx,cy,c0,c1,r]) => {
+        const g = ctx.createRadialGradient(cx,cy,0,cx,cy,maxDim*r);
+        g.addColorStop(0,c0); g.addColorStop(0.5,c1); g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      });
       ctx.restore();
     } else if (state.bgPattern === 'grid') {
-      // Render tech cyberpunk grid (highly visible)
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = Math.max(width * 0.002, 3);
-      const gridSize = Math.max(width * 0.05, 80);
-      for (let x = 0; x < width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=Math.max(W*0.002,3);
+      const gs=Math.max(W*0.05,80);
+      for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+      for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
       ctx.restore();
     } else if (state.bgPattern === 'stripes') {
-      // Render clean stripes (proportional and visible)
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-      ctx.lineWidth = Math.max(width * 0.015, 15);
-      const spacing = Math.max(width * 0.08, 120);
-      for (let i = -height; i < width; i += spacing) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i + height, height);
-        ctx.stroke();
-      }
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=Math.max(W*0.015,15);
+      const sp=Math.max(W*0.08,120);
+      for(let i=-H;i<W;i+=sp){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+H,H);ctx.stroke();}
       ctx.restore();
     } else if (state.bgPattern === 'waves') {
-      // Render layered sine waves (styled gracefully)
       ctx.save();
-      const waveBase1 = height - Math.max(height * 0.12, 160);
-      const waveAmp1 = Math.max(height * 0.03, 40);
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-      ctx.beginPath();
-      ctx.moveTo(0, height);
-      for (let x = 0; x <= width; x += 15) {
-        const y = waveBase1 + Math.sin(x * 0.002) * waveAmp1;
-        ctx.lineTo(x, y);
-      }
-      ctx.lineTo(width, height);
-      ctx.closePath();
-      ctx.fill();
-
-      const waveBase2 = height - Math.max(height * 0.09, 120);
-      const waveAmp2 = Math.max(height * 0.025, 30);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-      ctx.beginPath();
-      ctx.moveTo(0, height);
-      for (let x = 0; x <= width; x += 15) {
-        const y = waveBase2 + Math.cos(x * 0.0035) * waveAmp2;
-        ctx.lineTo(x, y);
-      }
-      ctx.lineTo(width, height);
-      ctx.closePath();
-      ctx.fill();
+      const draw=(base,amp,alpha,fn)=>{
+        ctx.fillStyle=`rgba(255,255,255,${alpha})`; ctx.beginPath(); ctx.moveTo(0,H);
+        for(let x=0;x<=W;x+=15) ctx.lineTo(x,base+fn(x)*amp);
+        ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
+      };
+      draw(H-Math.max(H*0.12,160),Math.max(H*0.03,40),0.06,x=>Math.sin(x*0.002));
+      draw(H-Math.max(H*0.09,120),Math.max(H*0.025,30),0.04,x=>Math.cos(x*0.0035));
       ctx.restore();
     } else if (state.bgPattern === 'dots') {
-      // Render tech cyberpunk dotted matrix
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-      const dotSpacing = Math.max(width * 0.03, 60);
-      const dotRadius = Math.max(width * 0.0015, 2.5);
-      for (let x = dotSpacing / 2; x < width; x += dotSpacing) {
-        for (let y = dotSpacing / 2; y < height; y += dotSpacing) {
-          ctx.beginPath();
-          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.12)';
+      const ds=Math.max(W*0.03,60), dr=Math.max(W*0.0015,2.5);
+      for(let x=ds/2;x<W;x+=ds) for(let y=ds/2;y<H;y+=ds){ctx.beginPath();ctx.arc(x,y,dr,0,Math.PI*2);ctx.fill();}
       ctx.restore();
     } else if (state.bgPattern === 'rings') {
-      // Render radial orbits/waves
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.lineWidth = Math.max(width * 0.0012, 2.5);
-      const centerX = width;
-      const centerY = 0; // top right corner origin
-      const ringSpacing = Math.max(width * 0.08, 160);
-      const maxDist = Math.max(width, height) * 1.5;
-      for (let r = ringSpacing; r < maxDist; r += ringSpacing) {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=Math.max(W*0.0012,2.5);
+      const rs=Math.max(W*0.08,160);
+      for(let r=rs;r<maxDim*1.5;r+=rs){ctx.beginPath();ctx.arc(W,0,r,0,Math.PI*2);ctx.stroke();}
       ctx.restore();
     } else if (state.bgPattern === 'network') {
-      // Render constellation nodes network
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-      ctx.lineWidth = Math.max(width * 0.0008, 1.5);
-      // Fixed points ratio array
-      const points = [
-        {x: 0.08, y: 0.22}, {x: 0.18, y: 0.14}, {x: 0.12, y: 0.42},
-        {x: 0.28, y: 0.28}, {x: 0.22, y: 0.58}, {x: 0.38, y: 0.72},
-        {x: 0.58, y: 0.12}, {x: 0.68, y: 0.32}, {x: 0.62, y: 0.52},
-        {x: 0.78, y: 0.18}, {x: 0.88, y: 0.38}, {x: 0.82, y: 0.68},
-        {x: 0.72, y: 0.82}, {x: 0.92, y: 0.78}
-      ];
-      const mappedPoints = points.map(p => ({
-        x: p.x * width,
-        y: p.y * height
-      }));
-      const maxDist = width * 0.22;
-      for (let i = 0; i < mappedPoints.length; i++) {
-        for (let j = i + 1; j < mappedPoints.length; j++) {
-          const p1 = mappedPoints[i];
-          const p2 = mappedPoints[j];
-          const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-          if (dist < maxDist) {
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          }
-        }
-      }
-      mappedPoints.forEach(p => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(width * 0.002, 4.5), 0, Math.PI * 2);
-        ctx.fill();
-      });
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=Math.max(W*0.0008,1.5);
+      const pts=[{x:.08,y:.22},{x:.18,y:.14},{x:.12,y:.42},{x:.28,y:.28},{x:.22,y:.58},{x:.38,y:.72},{x:.58,y:.12},{x:.68,y:.32},{x:.62,y:.52},{x:.78,y:.18},{x:.88,y:.38},{x:.82,y:.68},{x:.72,y:.82},{x:.92,y:.78}];
+      const mp=pts.map(p=>({x:p.x*W,y:p.y*H})); const md=W*0.22;
+      for(let i=0;i<mp.length;i++) for(let j=i+1;j<mp.length;j++) if(Math.hypot(mp[i].x-mp[j].x,mp[i].y-mp[j].y)<md){ctx.beginPath();ctx.moveTo(mp[i].x,mp[i].y);ctx.lineTo(mp[j].x,mp[j].y);ctx.stroke();}
+      mp.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(W*0.002,4.5),0,Math.PI*2);ctx.fill();});
       ctx.restore();
     } else if (state.bgPattern === 'spotlight') {
-      // Render diagonal spotlight sweep
       ctx.save();
-      const spotGrad = ctx.createLinearGradient(0, 0, width, height);
-      spotGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      spotGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0)');
-      spotGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.08)'); // bright sweep
-      spotGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0)');
-      spotGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = spotGrad;
-      ctx.fillRect(0, 0, width, height);
-      ctx.restore();
+      const g=ctx.createLinearGradient(0,0,W,H);
+      g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(0.3,'rgba(255,255,255,0)');
+      g.addColorStop(0.5,'rgba(255,255,255,0.08)'); g.addColorStop(0.7,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.restore();
     }
 
-    const paddingX = 100;
-    
-    let textStartX = width / 2;
-    let textTextAlign = 'center';
-    let textMaxWidth = width - (paddingX * 2);
+    // ── 文字排版起點 ──
+    let textX = W/2, textAlign = 'center', textMaxW = W - 200;
+    if (state.layoutMode === 'left')  { textX = 80;            textAlign = 'left'; textMaxW = W*0.4-120; }
+    if (state.layoutMode === 'right') { textX = W*0.6+40;      textAlign = 'left'; textMaxW = W*0.4-120; }
 
-    if (state.layoutMode === 'left') {
-      textStartX = 80;
-      textTextAlign = 'left';
-      textMaxWidth = width * 0.4 - 120;
-    } else if (state.layoutMode === 'right') {
-      textStartX = width * 0.6 + 40;
-      textTextAlign = 'left';
-      textMaxWidth = width * 0.4 - 120;
-    }
-    
-    // --- DRAW TOP TEXT OVERLAY ---
-    let topTextHeight = 0;
-    let topTextStartY = state.textMargin_top;
-    
+    // ── 上方文字 ──
+    let topH = 0, topY = state.textMargin_top;
     if (topText) {
       ctx.save();
-      let fontNameTop = state.fontFamily_top;
-      if (currentLang === 'zh') fontNameTop = 'Noto Sans TC';
-      else if (currentLang === 'ja') fontNameTop = 'Noto Sans JP';
-      else if (currentLang === 'ko') fontNameTop = 'Noto Sans KR';
-
-      ctx.font = `bold ${state.fontSize_top}px '${fontNameTop}', sans-serif`;
-      ctx.fillStyle = state.textColor_top;
-      ctx.textAlign = textTextAlign;
-      ctx.textBaseline = 'top';
-
-      const topLines = wrapText(ctx, topText, textMaxWidth);
-      topTextHeight = topLines.length * (state.fontSize_top * state.lineHeight_top);
-
-      if (state.showTextShadow_top) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4;
-      }
-
-      topLines.forEach((line, index) => {
-        const lineY = topTextStartY + index * (state.fontSize_top * state.lineHeight_top);
-        ctx.fillText(line, textStartX, lineY);
-      });
+      ctx.font = `bold ${state.fontSize_top}px '${resolveFont(lang, state.fontFamily_top)}', sans-serif`;
+      ctx.fillStyle = state.textColor_top; ctx.textAlign = textAlign; ctx.textBaseline = 'top';
+      const lines = wrapText(ctx, topText, textMaxW);
+      topH = lines.length * state.fontSize_top * state.lineHeight_top;
+      if (state.showTextShadow_top) { ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=15; ctx.shadowOffsetY=4; }
+      lines.forEach((l,i) => ctx.fillText(l, textX, topY + i*state.fontSize_top*state.lineHeight_top));
       ctx.restore();
     }
 
-    // --- DRAW BOTTOM TEXT OVERLAY ---
-    let bottomTextHeight = 0;
-    let bottomTextStartY = height - state.textMargin_bottom;
-    
+    // ── 下方文字 ──
+    let botH = 0, botY = H - state.textMargin_bottom;
     if (bottomText) {
       ctx.save();
-      let fontNameBottom = state.fontFamily_bottom;
-      if (currentLang === 'zh') fontNameBottom = 'Noto Sans TC';
-      else if (currentLang === 'ja') fontNameBottom = 'Noto Sans JP';
-      else if (currentLang === 'ko') fontNameBottom = 'Noto Sans KR';
-
-      ctx.font = `bold ${state.fontSize_bottom}px '${fontNameBottom}', sans-serif`;
-      ctx.fillStyle = state.textColor_bottom;
-      ctx.textAlign = textTextAlign;
-      ctx.textBaseline = 'top';
-
-      const bottomLines = wrapText(ctx, bottomText, textMaxWidth);
-      bottomTextHeight = bottomLines.length * (state.fontSize_bottom * state.lineHeight_bottom);
-      bottomTextStartY = height - bottomTextHeight - state.textMargin_bottom;
-
-      if (state.showTextShadow_bottom) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4;
-      }
-
-      bottomLines.forEach((line, index) => {
-        const lineY = bottomTextStartY + index * (state.fontSize_bottom * state.lineHeight_bottom);
-        ctx.fillText(line, textStartX, lineY);
-      });
+      ctx.font = `bold ${state.fontSize_bottom}px '${resolveFont(lang, state.fontFamily_bottom)}', sans-serif`;
+      ctx.fillStyle = state.textColor_bottom; ctx.textAlign = textAlign; ctx.textBaseline = 'top';
+      const lines = wrapText(ctx, bottomText, textMaxW);
+      botH = lines.length * state.fontSize_bottom * state.lineHeight_bottom;
+      botY = H - botH - state.textMargin_bottom;
+      if (state.showTextShadow_bottom) { ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=15; ctx.shadowOffsetY=4; }
+      lines.forEach((l,i) => ctx.fillText(l, textX, botY + i*state.fontSize_bottom*state.lineHeight_bottom));
       ctx.restore();
     }
 
-    // Update interactive text ranges for dragging (if not generating zip)
     if (!overrideLang) {
       textRanges[deviceKey] = {
-        top: topText ? { y1: topTextStartY, y2: topTextStartY + topTextHeight } : { y1: 0, y2: 0 },
-        bottom: bottomText ? { y1: bottomTextStartY, y2: bottomTextStartY + bottomTextHeight } : { y1: 0, y2: 0 }
+        top:    topText    ? { y1: topY, y2: topY+topH } : { y1:0, y2:0 },
+        bottom: bottomText ? { y1: botY, y2: botY+botH } : { y1:0, y2:0 }
       };
     }
 
-    // --- DETERMINE DEVICE FRAME SAFE DRAWING BOUNDS ---
-    const verticalOrientation = state.orientation === 'portrait';
-    let topMargin, bottomMargin, deviceAreaWidth, deviceAreaHeight;
-
+    // ── 裝置外框邊界 ──
+    const vert = state.orientation === 'portrait';
+    let tMargin, bMargin, areaW, areaH;
     if (state.layoutMode === 'vertical') {
-      topMargin = topText ? topTextStartY + topTextHeight + 60 : 80;
-      bottomMargin = bottomText ? bottomTextStartY - 60 : height - 80;
-      deviceAreaHeight = bottomMargin - topMargin;
-      deviceAreaWidth = width - 160; // 80px margin left and right
+      tMargin = topText    ? topY+topH+60  : 80;
+      bMargin = bottomText ? botY-60       : H-80;
+      areaH = bMargin-tMargin; areaW = W-160;
     } else {
-      // Side modes: no text top/bottom constraints, use full device height minus margin
-      topMargin = 80;
-      bottomMargin = height - 80;
-      deviceAreaHeight = bottomMargin - topMargin;
-      deviceAreaWidth = width * 0.6 - 120; // 60% width minus padding
+      tMargin=80; bMargin=H-80; areaH=bMargin-tMargin; areaW=W*0.6-120;
     }
 
-    // Determine target size for the screenshot / shell based on device type
-    // Device screen aspect ratios (Phone 9.3:19.3, Tablet 10:16)
-    let screenRatio = 0.5; // width / height
-    if (deviceKey === 'phone') {
-      screenRatio = verticalOrientation ? 1080 / 2280 : 2280 / 1080;
-    } else if (deviceKey === 'tablet7') {
-      screenRatio = verticalOrientation ? 1200 / 1920 : 1920 / 1200;
-    } else if (deviceKey === 'tablet10') {
-      screenRatio = verticalOrientation ? 1600 / 2560 : 2560 / 1600;
-    }
-
-    // Outer bounding dimensions for device frame (fits within Safe Area)
-    let deviceWidth, deviceHeight;
-
+    const screenRatios = {
+      phone:    vert ? 1080/2280 : 2280/1080,
+      tablet7:  vert ? 1200/1920 : 1920/1200,
+      tablet10: vert ? 1600/2560 : 2560/1600,
+    };
+    const sr = screenRatios[deviceKey];
+    let dW, dH;
     if (state.showDeviceFrame) {
-      const bezelFactor = 0.035; // proportional bezel factor matching drawDeviceFrame
-      
-      // Try width-limited first
-      let w = deviceAreaWidth;
-      let borderThickness = Math.max(w * bezelFactor, 12);
-      let screenW = w - 2 * borderThickness;
-      let screenH = screenW / screenRatio;
-      let h = screenH + 2 * borderThickness;
-      
-      if (h > deviceAreaHeight) {
-        // Height-limited
-        h = deviceAreaHeight;
-        w = (h * screenRatio) / (1 + 2 * bezelFactor * screenRatio - 2 * bezelFactor);
-        borderThickness = w * bezelFactor;
-        if (borderThickness < 12) {
-          borderThickness = 12;
-          w = (h - 24) * screenRatio + 24;
-        }
-      }
-      deviceWidth = w;
-      deviceHeight = h;
+      const bf=0.035; let w=areaW, bt=Math.max(w*bf,12), sw=w-2*bt, sh=sw/sr, h=sh+2*bt;
+      if (h>areaH) { h=areaH; w=(h*sr)/(1+2*bf*sr-2*bf); bt=w*bf; if(bt<12){bt=12;w=(h-24)*sr+24;} }
+      dW=w; dH=h;
     } else {
-      deviceWidth = deviceAreaWidth;
-      deviceHeight = deviceWidth / screenRatio;
-
-      if (deviceHeight > deviceAreaHeight) {
-        deviceHeight = deviceAreaHeight;
-        deviceWidth = deviceHeight * screenRatio;
-      }
+      dW=areaW; dH=dW/sr;
+      if (dH>areaH) { dH=areaH; dW=dH*sr; }
     }
 
-    // Center the device box within the designated Layout Area
-    let deviceX, deviceY;
-    if (state.layoutMode === 'left') {
-      const mockupAreaStartX = width * 0.4 + 40;
-      deviceX = mockupAreaStartX + (deviceAreaWidth - deviceWidth) / 2;
-      deviceY = topMargin + (deviceAreaHeight - deviceHeight) / 2;
-    } else if (state.layoutMode === 'right') {
-      const mockupAreaStartX = 80;
-      deviceX = mockupAreaStartX + (deviceAreaWidth - deviceWidth) / 2;
-      deviceY = topMargin + (deviceAreaHeight - deviceHeight) / 2;
-    } else {
-      deviceX = (width - deviceWidth) / 2;
-      deviceY = topMargin + (deviceAreaHeight - deviceHeight) / 2;
-    }
+    let dX, dY;
+    if (state.layoutMode==='left')  { dX=W*0.4+40+(areaW-dW)/2; dY=tMargin+(areaH-dH)/2; }
+    else if (state.layoutMode==='right') { dX=80+(areaW-dW)/2; dY=tMargin+(areaH-dH)/2; }
+    else { dX=(W-dW)/2; dY=tMargin+(areaH-dH)/2; }
 
-    // --- DRAW BACKING GLOW ---
+    // Glow 裝飾在外框後面
     if (state.bgPattern === 'glow') {
       ctx.save();
-      // Neon backlighting shadow glow
-      ctx.shadowColor = 'rgba(99, 102, 241, 0.6)'; // Rich indigo/violet glow
-      ctx.shadowBlur = Math.max(width * 0.04, 80);
-      ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
-      const radius = state.showDeviceFrame ? Math.max(deviceWidth * 0.08, 30) : 16;
-      drawRoundedRectPath(ctx, deviceX, deviceY, deviceWidth, deviceHeight, radius);
-      ctx.fill();
-      ctx.restore();
+      ctx.shadowColor='rgba(99,102,241,0.6)'; ctx.shadowBlur=Math.max(W*0.04,80);
+      ctx.fillStyle='rgba(99,102,241,0.15)';
+      drawRoundedRectPath(ctx, dX, dY, dW, dH, state.showDeviceFrame ? Math.max(dW*0.08,30) : 16);
+      ctx.fill(); ctx.restore();
     }
 
-    // --- DRAW SCREENSHOT & DEVICE FRAME ---
-    if (state.showDeviceFrame) {
-      drawDeviceFrame(ctx, deviceKey, deviceX, deviceY, deviceWidth, deviceHeight, verticalOrientation);
-    } else {
-      // Direct raw screenshot (no frame)
-      drawScreenshotDirect(ctx, deviceX, deviceY, deviceWidth, deviceHeight);
-    }
+    if (state.showDeviceFrame) drawDeviceFrame(ctx, deviceKey, dX, dY, dW, dH, vert, uploadedImage);
+    else drawScreenshotDirect(ctx, dX, dY, dW, dH, uploadedImage);
   }
 
-  // Draw Device Mockup Outline dynamically
-  function drawDeviceFrame(ctx, deviceKey, x, y, w, h, isVertical) {
-    const borderThickness = Math.max(w * 0.035, 12); // proportional bezel
-    const outerRadius = Math.max(w * 0.08, 30);
-    const innerRadius = Math.max(outerRadius - borderThickness, 12);
-
+  function drawDeviceFrame(ctx, deviceKey, x, y, w, h, isVert, uploadedImage) {
+    const bt=Math.max(w*0.035,12), or=Math.max(w*0.08,30), ir=Math.max(or-bt,12);
     ctx.save();
-    
-    // 1. Device Outer Shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 40;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 15;
+    ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=40; ctx.shadowOffsetY=15;
+    ctx.fillStyle='#1e2029'; ctx.strokeStyle='#2d303f'; ctx.lineWidth=bt*0.1;
+    drawRoundedRectPath(ctx,x,y,w,h,or); ctx.fill(); ctx.stroke();
+    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
 
-    // 2. Bezel Path (Device Shell)
-    ctx.fillStyle = '#1e2029'; // Matte dark grey body
-    ctx.strokeStyle = '#2d303f'; // Light edge highlight
-    ctx.lineWidth = borderThickness * 0.1;
-    
-    drawRoundedRectPath(ctx, x, y, w, h, outerRadius);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Clear shadow state
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    // 3. Screen Clip Path (inner bounds)
-    const screenX = x + borderThickness;
-    const screenY = y + borderThickness;
-    const screenW = w - (borderThickness * 2);
-    const screenH = h - (borderThickness * 2);
-
-    ctx.save();
-    drawRoundedRectPath(ctx, screenX, screenY, screenW, screenH, innerRadius);
-    ctx.clip();
-
-    // 4. Fill Screen Background / Screenshot
-    if (state.uploadedImage) {
-      drawScreenshotInside(ctx, state.uploadedImage, screenX, screenY, screenW, screenH);
-    } else {
-      // Draw Placeholder Screen
-      ctx.fillStyle = '#0f111a';
-      ctx.fillRect(screenX, screenY, screenW, screenH);
-      
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.fillRect(screenX, screenY, screenW, screenH);
-
-      ctx.font = `${Math.max(w * 0.05, 18)}px sans-serif`;
-      ctx.fillStyle = '#4f5263';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('App 截圖預覽', screenX + screenW / 2, screenY + screenH / 2);
+    const sx=x+bt, sy=y+bt, sw=w-bt*2, sh=h-bt*2;
+    ctx.save(); drawRoundedRectPath(ctx,sx,sy,sw,sh,ir); ctx.clip();
+    if (uploadedImage) drawScreenshotInside(ctx,uploadedImage,sx,sy,sw,sh);
+    else {
+      ctx.fillStyle='#0f111a'; ctx.fillRect(sx,sy,sw,sh);
+      ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(sx,sy,sw,sh);
+      ctx.font=`${Math.max(w*0.05,18)}px sans-serif`; ctx.fillStyle='#4f5263';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('App 截圖預覽', sx+sw/2, sy+sh/2);
     }
+    const gg=ctx.createLinearGradient(sx,sy,sx+sw,sy+sh);
+    gg.addColorStop(0,'rgba(255,255,255,0.08)'); gg.addColorStop(0.4,'rgba(255,255,255,0.02)');
+    gg.addColorStop(0.41,'rgba(255,255,255,0)'); gg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gg; ctx.fillRect(sx,sy,sw,sh);
+    ctx.restore();
 
-    // 5. Draw Glossy Reflection Overlay
-    const glossGrad = ctx.createLinearGradient(screenX, screenY, screenX + screenW, screenY + screenH);
-    glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-    glossGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.02)');
-    glossGrad.addColorStop(0.41, 'rgba(255, 255, 255, 0)');
-    glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = glossGrad;
-    ctx.fillRect(screenX, screenY, screenW, screenH);
-
-    ctx.restore(); // Exit Screen Clipping
-
-    // 6. Draw Simulated Accessories (Dynamic Island Notch, Home Bar indicator)
-    ctx.fillStyle = '#000000'; // black plastic
-    if (deviceKey === 'phone') {
-      if (isVertical) {
-        // Dynamic Island Capsule at top
-        const islandW = w * 0.28;
-        const islandH = Math.max(h * 0.022, 24);
-        const islandX = x + (w - islandW) / 2;
-        const islandY = y + borderThickness + (borderThickness * 0.2);
-        drawRoundedRectPath(ctx, islandX, islandY, islandW, islandH, islandH / 2);
-        ctx.fill();
-
-        // Home indicator bar at bottom screen
-        const barW = w * 0.35;
-        const barH = 5;
-        const barX = x + (w - barW) / 2;
-        const barY = y + h - borderThickness - 12;
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        drawRoundedRectPath(ctx, barX, barY, barW, barH, 2.5);
-        ctx.fill();
+    ctx.fillStyle='#000';
+    if (deviceKey==='phone') {
+      if (isVert) {
+        const iw=w*0.28,ih=Math.max(h*0.022,24);
+        drawRoundedRectPath(ctx,x+(w-iw)/2,y+bt+bt*0.2,iw,ih,ih/2); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.4)';
+        const bw=w*0.35;
+        drawRoundedRectPath(ctx,x+(w-bw)/2,y+h-bt-12,bw,5,2.5); ctx.fill();
       } else {
-        // Horizontal Dynamic Island (Left or right notch, or standard pill center top)
-        const islandW = h * 0.28;
-        const islandH = Math.max(w * 0.022, 24);
-        const islandX = x + borderThickness + (borderThickness * 0.2);
-        const islandY = y + (h - islandW) / 2;
-        // Draw rotating capsule
-        drawRoundedRectPath(ctx, islandX, islandY, islandH, islandW, islandH / 2);
-        ctx.fill();
+        const iw=h*0.28,ih=Math.max(w*0.022,24);
+        drawRoundedRectPath(ctx,x+bt+bt*0.2,y+(h-iw)/2,ih,iw,ih/2); ctx.fill();
       }
     } else {
-      // Tablets - draw a tiny camera pinhole in the bezel
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-      const camRadius = 4;
-      let camX = x + w / 2;
-      let camY = y + borderThickness / 2;
-      if (!isVertical) {
-        camX = x + borderThickness / 2;
-        camY = y + h / 2;
-      }
+      ctx.fillStyle='rgba(255,255,255,0.15)';
       ctx.beginPath();
-      ctx.arc(camX, camY, camRadius, 0, Math.PI * 2);
+      ctx.arc(isVert?x+w/2:x+bt/2, isVert?y+bt/2:y+h/2, 4, 0, Math.PI*2);
       ctx.fill();
     }
-
     ctx.restore();
   }
 
-  // Draw screenshots directly when no frame chosen
-  function drawScreenshotDirect(ctx, x, y, w, h) {
+  function drawScreenshotDirect(ctx, x, y, w, h, uploadedImage) {
     ctx.save();
-    // Rounded screenshot card shadows
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetY = 10;
-    
-    // Draw card border path
-    drawRoundedRectPath(ctx, x, y, w, h, 16);
-    ctx.clip();
-
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    if (state.uploadedImage) {
-      drawScreenshotInside(ctx, state.uploadedImage, x, y, w, h);
-    } else {
-      ctx.fillStyle = '#0f111a';
-      ctx.fillRect(x, y, w, h);
-      ctx.font = '24px sans-serif';
-      ctx.fillStyle = '#4f5263';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('App 截圖預覽', x + w / 2, y + h / 2);
-    }
+    ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=30; ctx.shadowOffsetY=10;
+    drawRoundedRectPath(ctx,x,y,w,h,16); ctx.clip();
+    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+    if (uploadedImage) drawScreenshotInside(ctx,uploadedImage,x,y,w,h);
+    else { ctx.fillStyle='#0f111a'; ctx.fillRect(x,y,w,h); ctx.font='24px sans-serif'; ctx.fillStyle='#4f5263'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('App 截圖預覽',x+w/2,y+h/2); }
     ctx.restore();
   }
 
-  // Scaling image inside device viewport
   function drawScreenshotInside(ctx, img, sx, sy, sw, sh) {
-    if (state.fitMode === 'stretch') {
-      ctx.drawImage(img, sx, sy, sw, sh);
-      return;
-    }
-
-    const imgRatio = img.width / img.height;
-    const destRatio = sw / sh;
-    
-    let drawW = sw;
-    let drawH = sh;
-    let drawX = sx;
-    let drawY = sy;
-
-    if (state.fitMode === 'contain') {
-      // Scale fitting inside, showing background bars if aspects mismatch
-      ctx.fillStyle = '#000';
-      ctx.fillRect(sx, sy, sw, sh);
-      
-      if (imgRatio > destRatio) {
-        drawH = sw / imgRatio;
-        drawY = sy + (sh - drawH) / 2;
-      } else {
-        drawW = sh * imgRatio;
-        drawX = sx + (sw - drawW) / 2;
-      }
+    if (state.fitMode==='stretch') { ctx.drawImage(img,sx,sy,sw,sh); return; }
+    const ir=img.width/img.height, dr=sw/sh;
+    let dw=sw,dh=sh,dx=sx,dy=sy;
+    if (state.fitMode==='contain') {
+      ctx.fillStyle='#000'; ctx.fillRect(sx,sy,sw,sh);
+      if(ir>dr){dh=sw/ir;dy=sy+(sh-dh)/2;}else{dw=sh*ir;dx=sx+(sw-dw)/2;}
     } else {
-      // Cover crop filling the viewport
-      if (imgRatio > destRatio) {
-        drawW = sh * imgRatio;
-        drawX = sx + (sw - drawW) / 2;
-      } else {
-        drawH = sw / imgRatio;
-        drawY = sy + (sh - drawH) / 2;
-      }
+      if(ir>dr){dw=sh*ir;dx=sx+(sw-dw)/2;}else{dh=sw/ir;dy=sy+(sh-dh)/2;}
     }
-
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.drawImage(img,dx,dy,dw,dh);
   }
 
-  // Canvas Path Helper
   function drawRoundedRectPath(ctx, x, y, w, h, r) {
     ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
     ctx.closePath();
   }
 
-  // 10. Single Download Trigger
+  // ── 拖曳文字 ──────────────────────────────────────────────────────
+  function setupDraggableText() {
+    let drag = null;
+    ['phone','tablet7','tablet10'].forEach(key => {
+      const canvas = document.getElementById(`canvas-${key}`);
+      if (!canvas) return;
+
+      const hitTest = (cx, cy) => {
+        let inX = false;
+        if (state.layoutMode==='vertical') inX = cx>=80 && cx<=canvas.width-80;
+        else if (state.layoutMode==='left') inX = cx>=80 && cx<=canvas.width*0.4;
+        else if (state.layoutMode==='right') inX = cx>=canvas.width*0.6 && cx<=canvas.width-80;
+        if (!inX) return null;
+        const r = textRanges[key];
+        if (r?.top.y2>0 && cy>=r.top.y1-40 && cy<=r.top.y2+40) return 'top';
+        if (r?.bottom.y2>0 && cy>=r.bottom.y1-40 && cy<=r.bottom.y2+40) return 'bottom';
+        return null;
+      };
+
+      const toCanvas = (clientX, clientY) => {
+        const rect = canvas.getBoundingClientRect();
+        return { cx:(clientX-rect.left)*canvas.width/rect.width, cy:(clientY-rect.top)*canvas.height/rect.height, sy:canvas.height/rect.height };
+      };
+
+      canvas.addEventListener('mousedown', e => {
+        const {cx,cy,sy} = toCanvas(e.clientX,e.clientY);
+        const field = hitTest(cx,cy);
+        if (field) { drag = {key,field,startY:e.clientY,startMargin:field==='top'?state.textMargin_top:state.textMargin_bottom,sy}; canvas.style.cursor='ns-resize'; }
+      });
+      canvas.addEventListener('mousemove', e => {
+        if (drag) return;
+        const {cx,cy} = toCanvas(e.clientX,e.clientY);
+        canvas.style.cursor = hitTest(cx,cy) ? 'ns-resize' : 'default';
+      });
+      canvas.addEventListener('touchstart', e => {
+        if (e.touches.length!==1) return;
+        const {cx,cy,sy} = toCanvas(e.touches[0].clientX,e.touches[0].clientY);
+        const field = hitTest(cx,cy);
+        if (field) { drag={key,field,startY:e.touches[0].clientY,startMargin:field==='top'?state.textMargin_top:state.textMargin_bottom,sy}; e.preventDefault(); }
+      },{passive:false});
+    });
+
+    const applyDrag = (clientY) => {
+      if (!drag) return;
+      const delta = (clientY - drag.startY) * drag.sy;
+      if (drag.field==='top')    { const v=Math.max(0,Math.round(drag.startMargin+delta)); state.textMargin_top=v; el.inputMarginTop.value=v; }
+      else                       { const v=Math.max(0,Math.round(drag.startMargin-delta)); state.textMargin_bottom=v; el.inputMarginBottom.value=v; }
+      triggerAllRenders();
+    };
+    const endDrag = () => { if (!drag) return; document.getElementById(`canvas-${drag.key}`)?.style && (document.getElementById(`canvas-${drag.key}`).style.cursor='default'); drag=null; saveState(); };
+
+    window.addEventListener('mousemove', e => applyDrag(e.clientY));
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchmove', e => { if(drag&&e.touches.length===1){applyDrag(e.touches[0].clientY);e.preventDefault();} },{passive:false});
+    window.addEventListener('touchend', endDrag);
+  }
+
+  // ── UI 狀態同步 ──────────────────────────────────────────────────
+  function updateUIState() {
+    el.textCaptionTop.value = state.captionZH_top;
+    el.selectFontTop.value  = state.fontFamily_top;
+    el.colorTextTop.value   = state.textColor_top;
+    el.inputFontSizeTop.value   = state.fontSize_top;
+    el.inputLineHeightTop.value = state.lineHeight_top;
+    el.inputMarginTop.value     = state.textMargin_top;
+    el.toggleShadowTop.checked  = state.showTextShadow_top;
+
+    el.textCaptionBottom.value = state.captionZH_bottom;
+    el.selectFontBottom.value  = state.fontFamily_bottom;
+    el.colorTextBottom.value   = state.textColor_bottom;
+    el.inputFontSizeBottom.value   = state.fontSize_bottom;
+    el.inputLineHeightBottom.value = state.lineHeight_bottom;
+    el.inputMarginBottom.value     = state.textMargin_bottom;
+    el.toggleShadowBottom.checked  = state.showTextShadow_bottom;
+
+    el.colorBg.value         = state.bgColor;
+    el.colorBgHex.value      = state.bgColor.toUpperCase();
+    el.colorGradStart.value  = state.gradStart;
+    el.colorGradEnd.value    = state.gradEnd;
+    el.selectLayoutMode.value = state.layoutMode;
+    el.selectBgPattern.value  = state.bgPattern;
+    el.selectFitMode.value    = state.fitMode;
+    el.toggleDeviceFrame.checked = state.showDeviceFrame;
+
+    el.transZHTop.value    = state.captionZH_top;
+    el.transZHBottom.value = state.captionZH_bottom;
+    el.transENTop.value    = state.translations_top.en;
+    el.transENBottom.value = state.translations_bottom.en;
+    el.transJATop.value    = state.translations_top.ja;
+    el.transJABottom.value = state.translations_bottom.ja;
+    el.transKOTop.value    = state.translations_top.ko;
+    el.transKOBottom.value = state.translations_bottom.ko;
+
+    el.bgSolidControl.style.display    = state.bgType==='solid'    ? 'block' : 'none';
+    el.bgGradientControl.style.display = state.bgType==='gradient' ? 'block' : 'none';
+    el.bgImageControl.style.display    = state.bgType==='image'    ? 'block' : 'none';
+    document.querySelectorAll('.radio-tab').forEach(l => l.classList.toggle('active', l.querySelector('input').value===state.bgType));
+    const bgRadio = document.querySelector(`input[name="bg-type"][value="${state.bgType}"]`);
+    if (bgRadio) bgRadio.checked = true;
+
+    el.orientationBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-orientation')===state.orientation));
+    el.canvasGrid.classList.toggle('landscape', state.orientation==='landscape');
+    el.langTabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-lang')===state.currentLangPreview));
+
+    if (el.rangeBgOverlay) {
+      const pct = Math.round(state.bgOverlayOpacity*100);
+      el.rangeBgOverlay.value = pct;
+      if (el.bgOverlayVal) el.bgOverlayVal.textContent = `${pct}%`;
+    }
+
+    updateResolutionLabels();
+    updateScreenshotStrip();
+  }
+
+  function updateResolutionLabels() {
+    const p = state.orientation;
+    el.resPhone.textContent   = `${DEVICE_SPECS.phone[p].width} x ${DEVICE_SPECS.phone[p].height}`;
+    el.resTablet7.textContent = `${DEVICE_SPECS.tablet7[p].width} x ${DEVICE_SPECS.tablet7[p].height}`;
+    el.resTablet10.textContent= `${DEVICE_SPECS.tablet10[p].width} x ${DEVICE_SPECS.tablet10[p].height}`;
+  }
+
+  function adjustZoom() {
+    el.zoomValue.textContent = `${Math.round(state.zoom*100)}%`;
+    document.documentElement.style.setProperty('--zoom-factor', state.zoom);
+  }
+
+  // ── 匯出 ─────────────────────────────────────────────────────────
   function exportSingleImage(deviceKey) {
     const canvas = document.getElementById(`canvas-${deviceKey}`);
     if (!canvas) return;
-
-    const langName = state.currentLangPreview.toUpperCase();
-    const resolution = state.orientation === 'portrait' ? 'Portrait' : 'Landscape';
-    const filename = `PlayShot_${deviceKey}_${langName}_${resolution}.png`;
-
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showToast(`導出成功: ${filename}`, 'success');
+    const shot = state.screenshots.length > 1 ? `_截圖${state.currentScreenshotIdx+1}` : '';
+    const name = `PlayShot_${deviceKey}_${state.currentLangPreview.toUpperCase()}_${state.orientation==='portrait'?'直式':'橫式'}${shot}.png`;
+    const a = document.createElement('a');
+    a.download = name; a.href = canvas.toDataURL('image/png'); a.click();
+    showToast(`導出成功: ${name}`, 'success');
   }
 
-  // 11. Batch Export All Sizes & Languages (JSZip)
   async function exportAllZipped() {
     const btn = el.btnExportAll;
     btn.disabled = true;
-    btn.innerHTML = '<i class="spinner"></i> 正在批次渲染中...';
-
-    // Temp hidden canvas for generating images
     const tempCanvas = document.createElement('canvas');
     const zip = new JSZip();
-
-    const devices = ['phone', 'tablet7', 'tablet10'];
-    const languages = ['zh', 'en', 'ja', 'ko'];
-    const orientationName = state.orientation === 'portrait' ? 'Portrait' : 'Landscape';
-
-    let renderCount = 0;
-    const totalCount = devices.length * languages.length;
-
-    // Outer progress tracking toast
-    showToast(`開始批次渲染 ${totalCount} 張展示圖...`, 'info');
+    const devices = ['phone','tablet7','tablet10'];
+    const langs = ['zh','en','ja','ko'];
+    const ori = state.orientation==='portrait' ? '直式' : '橫式';
+    const shotCount = Math.max(state.screenshots.length, 1);
+    const total = devices.length * langs.length * shotCount;
+    let done = 0;
 
     try {
-      for (const lang of languages) {
-        const folder = zip.folder(lang.toUpperCase());
-        for (const device of devices) {
-          // Render to the offscreen tempCanvas
-          renderDeviceCanvas(device, tempCanvas, lang);
-          
-          // Get binary Blob data
-          const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/png'));
-          const filename = `${lang.toUpperCase()}_${device}_${orientationName}.png`;
-          folder.file(filename, blob);
-          
-          renderCount++;
+      const savedIdx = state.currentScreenshotIdx;
+      for (let si=0; si<shotCount; si++) {
+        state.currentScreenshotIdx = si;
+        for (const lang of langs) {
+          const folderName = shotCount>1 ? `${lang.toUpperCase()}/截圖_${si+1}` : lang.toUpperCase();
+          const folder = zip.folder(folderName);
+          for (const device of devices) {
+            renderDeviceCanvas(device, tempCanvas, lang);
+            const blob = await new Promise(r => tempCanvas.toBlob(r, 'image/png'));
+            folder.file(`${lang.toUpperCase()}_${device}_${ori}.png`, blob);
+            done++;
+            btn.innerHTML = `<i class="spinner"></i> 渲染中 ${done} / ${total}`;
+          }
         }
       }
-
-      // Generate Zip File download link
-      showToast('渲染完成，正在封裝壓縮檔...', 'info');
+      state.currentScreenshotIdx = savedIdx;
+      btn.innerHTML = '<i class="spinner"></i> 封裝壓縮中...';
       const content = await zip.generateAsync({ type: 'blob' });
-      
-      const link = document.createElement('a');
-      link.download = `playshot_store_screenshots_${orientationName}.zip`;
-      link.href = URL.createObjectURL(content);
-      link.click();
-
-      showToast('一鍵下載 ZIP 打包成功！', 'success');
+      const a = document.createElement('a');
+      a.download = `playshot_${ori}.zip`;
+      a.href = URL.createObjectURL(content);
+      a.click();
+      showToast('ZIP 打包下載成功！', 'success');
     } catch (err) {
-      console.error('Batch export failed:', err);
+      console.error(err);
       showToast('打包導出失敗，請再試一次。', 'error');
     } finally {
       btn.disabled = false;
       btn.innerHTML = '<i data-lucide="download-cloud"></i> 一鍵導出所有規格 & 語言 (ZIP)';
       if (typeof lucide !== 'undefined') lucide.createIcons();
+      triggerAllRenders();
     }
   }
 });

@@ -13,7 +13,7 @@
   <!-- JSZip for batch download -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <div class="app-container">
@@ -30,6 +30,9 @@
         <button id="btn-export-all" class="btn btn-primary">
           <i data-lucide="download-cloud"></i> 一鍵導出所有規格 & 語言 (ZIP)
         </button>
+        <button id="btn-reset" class="btn btn-ghost" title="重設所有設定">
+          <i data-lucide="rotate-ccw"></i>
+        </button>
       </div>
     </header>
 
@@ -39,16 +42,29 @@
         <section class="section">
           <h2 class="section-title"><i data-lucide="image"></i> 1. 上傳截圖</h2>
           <div class="upload-zone" id="upload-zone">
-            <input type="file" id="file-input" accept="image/*" style="display: none;">
-            <div class="upload-prompt">
+            <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
+            <div class="upload-prompt" id="upload-prompt-empty">
               <i data-lucide="upload-cloud" class="upload-icon"></i>
               <p class="primary-text">拖曳圖片至此或點擊上傳</p>
-              <p class="secondary-text">支援 PNG, JPG (直式/橫式皆可)</p>
+              <p class="secondary-text">支援 PNG, JPG｜可同時選多張</p>
             </div>
-            <div class="upload-preview" id="upload-preview" style="display: none;">
-              <img id="img-thumbnail" src="" alt="Thumbnail">
-              <button class="btn-remove-img" id="btn-remove-img" title="移除圖片"><i data-lucide="trash-2"></i></button>
+            <div class="upload-prompt upload-prompt-add" id="upload-prompt-add" style="display: none;">
+              <i data-lucide="plus-circle" class="upload-icon" style="width: 22px; height: 22px;"></i>
+              <p class="secondary-text">拖曳或點擊新增截圖</p>
             </div>
+          </div>
+          <!-- 截圖縮圖條 -->
+          <div class="screenshot-strip" id="screenshot-strip" style="display: none;">
+            <div class="strip-header">
+              <span id="screenshot-counter" class="strip-counter">1 / 1</span>
+              <div class="strip-nav">
+                <button id="btn-prev-shot" class="nav-btn" title="上一張"><i data-lucide="chevron-left"></i></button>
+                <button id="btn-next-shot" class="nav-btn" title="下一張"><i data-lucide="chevron-right"></i></button>
+                <button id="btn-add-shot"  class="nav-btn" title="新增截圖"><i data-lucide="plus"></i></button>
+                <button id="btn-remove-shot" class="nav-btn danger" title="移除此截圖"><i data-lucide="trash-2"></i></button>
+              </div>
+            </div>
+            <div class="strip-thumbnails" id="strip-thumbnails"></div>
           </div>
         </section>
 
@@ -160,6 +176,11 @@
                 <button class="btn-remove-img" id="btn-remove-bg-image" title="移除背景圖" style="width: 24px; height: 24px; top: 4px; right: 4px;"><i data-lucide="x" style="width: 12px; height: 12px;"></i></button>
               </div>
             </div>
+            <!-- 暗色遮罩（改善文字可讀性） -->
+            <div class="control-group" style="margin-top: 10px;">
+              <label for="range-bg-overlay">暗色遮罩濃度 <span id="bg-overlay-val" style="color: var(--text-primary); font-weight: 600;">0%</span></label>
+              <input type="range" id="range-bg-overlay" min="0" max="80" value="0" step="5">
+            </div>
           </div>
 
           <!-- Background Pattern Controls -->
@@ -189,7 +210,7 @@
 
           <div class="control-row">
             <div class="control-group half">
-              <label for="select-font-top">字型 (上方)</label>
+              <label for="select-font-top">字型 (上方) <span class="font-note">中日韓自動套用 Noto</span></label>
               <select id="select-font-top">
                 <option value="Noto Sans TC">Noto Sans 繁中</option>
                 <option value="Inter">Inter (Sans)</option>
@@ -234,7 +255,7 @@
 
           <div class="control-row">
             <div class="control-group half">
-              <label for="select-font-bottom">字型 (下方)</label>
+              <label for="select-font-bottom">字型 (下方) <span class="font-note">中日韓自動套用 Noto</span></label>
               <select id="select-font-bottom">
                 <option value="Noto Sans TC">Noto Sans 繁中</option>
                 <option value="Inter">Inter (Sans)</option>
@@ -295,6 +316,8 @@
           </div>
         </div>
 
+        <!-- 拖曳提示 -->
+        <p class="drag-hint"><i data-lucide="move-vertical" style="width:12px;height:12px;vertical-align:middle;"></i> 可在預覽畫面上拖曳文字調整位置</p>
         <!-- Rendered Previews Container -->
         <div class="canvas-grid" id="canvas-grid">
           <!-- Phone Card -->
@@ -384,6 +407,6 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
