@@ -13,7 +13,7 @@
   <!-- JSZip for batch download -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <div class="app-container">
@@ -189,13 +189,12 @@
             <select id="select-bg-pattern">
               <option value="none" selected>無裝飾 (None)</option>
               <option value="mesh">霓虹光暈 (Mesh Blobs)</option>
+              <option value="aurora">北極光暈 (Aurora)</option>
+              <option value="bokeh">散景光球 (Bokeh)</option>
               <option value="grid">科技網格 (Cyber Grid)</option>
-              <option value="stripes">斜紋線條 (Stripes)</option>
-              <option value="waves">抽象波浪 (Layered Waves)</option>
+              <option value="diamond">菱形格紋 (Diamond Grid)</option>
               <option value="dots">科技點矩陣 (Dotted Matrix)</option>
-              <option value="rings">放射向心圓 (Radial Rings)</option>
               <option value="network">星座幾何網格 (Constellation)</option>
-              <option value="spotlight">工作室對角光束 (Spotlight)</option>
               <option value="glow">霓虹背光源 (Backing Glow)</option>
             </select>
           </div>
@@ -307,6 +306,7 @@
             <button class="lang-tab" data-lang="en">English</button>
             <button class="lang-tab" data-lang="ja">日本語</button>
             <button class="lang-tab" data-lang="ko">한국어</button>
+            <button class="lang-tab" data-lang="all">🌐 全語言</button>
           </div>
           <div class="zoom-controls">
             <span class="zoom-val" id="zoom-value">30%</span>
@@ -407,6 +407,6 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

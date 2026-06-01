@@ -585,6 +585,42 @@ document.addEventListener('DOMContentLoaded', () => {
     return lines;
   }
 
+  // ── 全語言模式 helper ──────────────────────────────────────────
+  const ALL_LANGS = ['zh','en','ja','ko'];
+  const LANG_FLAGS = { zh:'🇹🇼', en:'🇺🇸', ja:'🇯🇵', ko:'🇰🇷' };
+
+  function calcAllLangTextHeight(ctx, field, maxW, fontSize, lineHeight, fontFamily) {
+    const sz = Math.round(fontSize * 0.68);
+    const gap = Math.round(sz * 0.4);
+    let total = 0;
+    ALL_LANGS.forEach(code => {
+      const text = (field === 'top' ? state.translations_top[code] : state.translations_bottom[code]) || '';
+      if (!text.trim()) return;
+      ctx.font = `bold ${sz}px '${resolveFont(code, fontFamily)}', sans-serif`;
+      total += wrapText(ctx, LANG_FLAGS[code] + ' ' + text, maxW).length * sz * lineHeight + gap;
+    });
+    return total;
+  }
+
+  function renderAllLangText(ctx, field, x, align, maxW, startY, fontSize, lineHeight, fontFamily, textColor, showShadow) {
+    const sz = Math.round(fontSize * 0.68);
+    const gap = Math.round(sz * 0.4);
+    let curY = startY;
+    ALL_LANGS.forEach(code => {
+      const text = (field === 'top' ? state.translations_top[code] : state.translations_bottom[code]) || '';
+      if (!text.trim()) return;
+      ctx.save();
+      ctx.font = `bold ${sz}px '${resolveFont(code, fontFamily)}', sans-serif`;
+      ctx.fillStyle = textColor; ctx.textAlign = align; ctx.textBaseline = 'top';
+      if (showShadow) { ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=12; ctx.shadowOffsetY=3; }
+      const lines = wrapText(ctx, LANG_FLAGS[code] + ' ' + text, maxW);
+      lines.forEach((l, i) => ctx.fillText(l, x, curY + i * sz * lineHeight));
+      curY += lines.length * sz * lineHeight + gap;
+      ctx.restore();
+    });
+    return curY - startY;
+  }
+
   // ── 渲染 ─────────────────────────────────────────────────────────
   function triggerAllRenders() {
     renderDeviceCanvas('phone',    el.canvasPhone);
@@ -639,49 +675,50 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       ctx.restore();
     } else if (state.bgPattern === 'grid') {
-      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=Math.max(W*0.002,3);
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.13)'; ctx.lineWidth=Math.max(W*0.002,3);
       const gs=Math.max(W*0.05,80);
       for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
       for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
       ctx.restore();
-    } else if (state.bgPattern === 'stripes') {
-      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=Math.max(W*0.015,15);
-      const sp=Math.max(W*0.08,120);
-      for(let i=-H;i<W;i+=sp){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+H,H);ctx.stroke();}
-      ctx.restore();
-    } else if (state.bgPattern === 'waves') {
+    } else if (state.bgPattern === 'aurora') {
       ctx.save();
-      const draw=(base,amp,alpha,fn)=>{
-        ctx.fillStyle=`rgba(255,255,255,${alpha})`; ctx.beginPath(); ctx.moveTo(0,H);
-        for(let x=0;x<=W;x+=15) ctx.lineTo(x,base+fn(x)*amp);
-        ctx.lineTo(W,H); ctx.closePath(); ctx.fill();
-      };
-      draw(H-Math.max(H*0.12,160),Math.max(H*0.03,40),0.06,x=>Math.sin(x*0.002));
-      draw(H-Math.max(H*0.09,120),Math.max(H*0.025,30),0.04,x=>Math.cos(x*0.0035));
+      [{x1:0,y1:H*0.05,x2:W*0.7,y2:H*0.45,R:16,G:185,B:129,a:0.38},{x1:W*0.25,y1:0,x2:W,y2:H*0.5,R:99,G:102,B:241,a:0.32},{x1:0,y1:H*0.5,x2:W*0.8,y2:H*0.9,R:6,G:182,B:212,a:0.30},{x1:W*0.4,y1:H*0.3,x2:W,y2:H,R:236,G:72,B:153,a:0.22}]
+      .forEach(({x1,y1,x2,y2,R,G,B,a}) => {
+        const gr=ctx.createLinearGradient(x1,y1,x2,y2);
+        gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(0.35,`rgba(${R},${G},${B},${a})`);
+        gr.addColorStop(0.55,`rgba(${R},${G},${B},${(a*0.35).toFixed(2)})`); gr.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+      });
+      ctx.restore();
+    } else if (state.bgPattern === 'bokeh') {
+      ctx.save();
+      [{x:.15,y:.18,r:.13,R:99,G:102,B:241,a:.40},{x:.83,y:.12,r:.10,R:236,G:72,B:153,a:.35},{x:.40,y:.75,r:.15,R:16,G:185,B:129,a:.32},{x:.72,y:.55,r:.09,R:6,G:182,B:212,a:.38},{x:.18,y:.85,r:.11,R:245,G:158,B:11,a:.30},{x:.88,y:.40,r:.12,R:139,G:92,B:246,a:.35}]
+      .forEach(c => {
+        const gr=ctx.createRadialGradient(c.x*W,c.y*H,0,c.x*W,c.y*H,c.r*maxDim);
+        gr.addColorStop(0,`rgba(${c.R},${c.G},${c.B},${c.a})`);
+        gr.addColorStop(0.5,`rgba(${c.R},${c.G},${c.B},${(c.a*0.25).toFixed(2)})`);
+        gr.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+      });
+      ctx.restore();
+    } else if (state.bgPattern === 'diamond') {
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.13)'; ctx.lineWidth=Math.max(W*0.0012,2);
+      const gs=Math.max(W*0.07,100);
+      for(let i=-(H+W);i<W+H;i+=gs){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i+H,H);ctx.stroke();}
+      for(let i=-H;i<W+H*2;i+=gs){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i-H,H);ctx.stroke();}
       ctx.restore();
     } else if (state.bgPattern === 'dots') {
-      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.12)';
-      const ds=Math.max(W*0.03,60), dr=Math.max(W*0.0015,2.5);
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.20)';
+      const ds=Math.max(W*0.03,60), dr=Math.max(W*0.0018,3);
       for(let x=ds/2;x<W;x+=ds) for(let y=ds/2;y<H;y+=ds){ctx.beginPath();ctx.arc(x,y,dr,0,Math.PI*2);ctx.fill();}
       ctx.restore();
-    } else if (state.bgPattern === 'rings') {
-      ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=Math.max(W*0.0012,2.5);
-      const rs=Math.max(W*0.08,160);
-      for(let r=rs;r<maxDim*1.5;r+=rs){ctx.beginPath();ctx.arc(W,0,r,0,Math.PI*2);ctx.stroke();}
-      ctx.restore();
     } else if (state.bgPattern === 'network') {
-      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=Math.max(W*0.0008,1.5);
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.strokeStyle='rgba(255,255,255,0.09)'; ctx.lineWidth=Math.max(W*0.001,2);
       const pts=[{x:.08,y:.22},{x:.18,y:.14},{x:.12,y:.42},{x:.28,y:.28},{x:.22,y:.58},{x:.38,y:.72},{x:.58,y:.12},{x:.68,y:.32},{x:.62,y:.52},{x:.78,y:.18},{x:.88,y:.38},{x:.82,y:.68},{x:.72,y:.82},{x:.92,y:.78}];
       const mp=pts.map(p=>({x:p.x*W,y:p.y*H})); const md=W*0.22;
       for(let i=0;i<mp.length;i++) for(let j=i+1;j<mp.length;j++) if(Math.hypot(mp[i].x-mp[j].x,mp[i].y-mp[j].y)<md){ctx.beginPath();ctx.moveTo(mp[i].x,mp[i].y);ctx.lineTo(mp[j].x,mp[j].y);ctx.stroke();}
       mp.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(W*0.002,4.5),0,Math.PI*2);ctx.fill();});
       ctx.restore();
-    } else if (state.bgPattern === 'spotlight') {
-      ctx.save();
-      const g=ctx.createLinearGradient(0,0,W,H);
-      g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(0.3,'rgba(255,255,255,0)');
-      g.addColorStop(0.5,'rgba(255,255,255,0.08)'); g.addColorStop(0.7,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.restore();
     }
 
     // ── 文字排版起點 ──
@@ -691,7 +728,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── 上方文字 ──
     let topH = 0, topY = state.textMargin_top;
-    if (topText) {
+    if (lang === 'all') {
+      const hasTop = Object.values(state.translations_top).some(t => t && t.trim());
+      if (hasTop) topH = renderAllLangText(ctx, 'top', textX, textAlign, textMaxW, topY, state.fontSize_top, state.lineHeight_top, state.fontFamily_top, state.textColor_top, state.showTextShadow_top);
+    } else if (topText) {
       ctx.save();
       ctx.font = `bold ${state.fontSize_top}px '${resolveFont(lang, state.fontFamily_top)}', sans-serif`;
       ctx.fillStyle = state.textColor_top; ctx.textAlign = textAlign; ctx.textBaseline = 'top';
@@ -704,7 +744,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── 下方文字 ──
     let botH = 0, botY = H - state.textMargin_bottom;
-    if (bottomText) {
+    if (lang === 'all') {
+      const hasBottom = Object.values(state.translations_bottom).some(t => t && t.trim());
+      if (hasBottom) {
+        botH = calcAllLangTextHeight(ctx, 'bottom', textMaxW, state.fontSize_bottom, state.lineHeight_bottom, state.fontFamily_bottom);
+        botY = H - botH - state.textMargin_bottom;
+        renderAllLangText(ctx, 'bottom', textX, textAlign, textMaxW, botY, state.fontSize_bottom, state.lineHeight_bottom, state.fontFamily_bottom, state.textColor_bottom, state.showTextShadow_bottom);
+      }
+    } else if (bottomText) {
       ctx.save();
       ctx.font = `bold ${state.fontSize_bottom}px '${resolveFont(lang, state.fontFamily_bottom)}', sans-serif`;
       ctx.fillStyle = state.textColor_bottom; ctx.textAlign = textAlign; ctx.textBaseline = 'top';
@@ -716,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.restore();
     }
 
-    if (!overrideLang) {
+    if (!overrideLang && lang !== 'all') {
       textRanges[deviceKey] = {
         top:    topText    ? { y1: topY, y2: topY+topH } : { y1:0, y2:0 },
         bottom: bottomText ? { y1: botY, y2: botY+botH } : { y1:0, y2:0 }
@@ -727,8 +774,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const vert = state.orientation === 'portrait';
     let tMargin, bMargin, areaW, areaH;
     if (state.layoutMode === 'vertical') {
-      tMargin = topText    ? topY+topH+60  : 80;
-      bMargin = bottomText ? botY-60       : H-80;
+      tMargin = topH > 0 ? topY+topH+60 : 80;
+      bMargin = botH > 0 ? botY-60      : H-80;
       areaH = bMargin-tMargin; areaW = W-160;
     } else {
       tMargin=80; bMargin=H-80; areaH=bMargin-tMargin; areaW=W*0.6-120;
@@ -988,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tempCanvas = document.createElement('canvas');
     const zip = new JSZip();
     const devices = ['phone','tablet7','tablet10'];
-    const langs = ['zh','en','ja','ko'];
+    const langs = ['zh','en','ja','ko','all'];
     const ori = state.orientation==='portrait' ? '直式' : '橫式';
     const shotCount = Math.max(state.screenshots.length, 1);
     const total = devices.length * langs.length * shotCount;
