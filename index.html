@@ -46,11 +46,16 @@
               <input type="radio" name="image-source" value="upload" checked>
               📁 上傳截圖
             </label>
+            <label class="radio-tab" id="tab-src-hybrid">
+              <input type="radio" name="image-source" value="hybrid">
+              🔀 混合模式
+            </label>
             <label class="radio-tab" id="tab-src-ai">
               <input type="radio" name="image-source" value="ai">
-              🤖 AI 智慧生成
+              🤖 全 AI 生成
             </label>
           </div>
+          <p id="hybrid-mode-hint" class="mode-hint" style="display:none;">手機格使用上傳截圖，Feature Graphic 與平板格由 AI 生成（只需生 2 張）</p>
         </section>
 
         <section class="section" id="sec-upload-screenshots">
@@ -131,6 +136,11 @@
               <input type="checkbox" id="toggle-cohesive-seed" checked>
               使用相同 Seed 保持所有尺寸風格一致
             </label>
+          </div>
+
+          <div class="control-group" id="hybrid-feature-group" style="display:none;">
+            <label for="hybrid-feature-prompt">Feature Graphic 專屬 Prompt（選用）</label>
+            <textarea id="hybrid-feature-prompt" rows="2" placeholder="留空則自動在平板 Prompt 加上橫幅描述。例如：sweeping landscape banner with app logo and tagline..."></textarea>
           </div>
 
           <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top: 12px;" type="button">

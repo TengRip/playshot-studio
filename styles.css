@@ -37,6 +37,16 @@
   cursor: not-allowed;
 }
 
+.mode-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(99, 102, 241, 0.08);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+}
+
 :root {
   /* Colors */
   --bg-app: #08090d;

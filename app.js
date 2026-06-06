@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bgOverlayOpacity: 0,
     imageSource: 'upload',
     aiPrompt: '',
+    aiPromptFeature: '',
     aiStyle: 'app mockup, modern UI, clean design, 3d render',
     aiSeed: 42,
     aiCohesiveSeed: true,
@@ -153,6 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRandSeed:         document.getElementById('btn-rand-seed'),
     toggleCohesiveSeed:  document.getElementById('toggle-cohesive-seed'),
     btnGenerateAi:       document.getElementById('btn-generate-ai'),
+    hybridModeHint:      document.getElementById('hybrid-mode-hint'),
+    hybridFeatureGroup:  document.getElementById('hybrid-feature-group'),
+    hybridFeaturePrompt: document.getElementById('hybrid-feature-prompt'),
     mdFileInput:         document.getElementById('md-file-input'),
     btnPickMd:           document.getElementById('btn-pick-md'),
     mdFileName:          document.getElementById('md-file-name'),
@@ -216,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'captionZH_bottom','fontFamily_bottom','fontSize_bottom','lineHeight_bottom','textColor_bottom',
         'textMargin_bottom','showTextShadow_bottom','translations_bottom',
         'currentLangPreview','zoom','layoutMode','bgPattern','bgOverlayOpacity',
-        'imageSource','aiPrompt','aiStyle','aiSeed','aiCohesiveSeed'
+        'imageSource','aiPrompt','aiPromptFeature','aiStyle','aiSeed','aiCohesiveSeed'
       ];
       keys.forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
 
@@ -342,6 +346,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`已產生隨機 Seed: ${seed}`, 'success');
       });
       el.btnGenerateAi.addEventListener('click', generateAIImages);
+      if (el.hybridFeaturePrompt) {
+        el.hybridFeaturePrompt.addEventListener('input', e => { state.aiPromptFeature = e.target.value; saveState(); });
+      }
 
       // README 上傳與分析
       el.btnPickMd.addEventListener('click', () => el.mdFileInput.click());
@@ -737,6 +744,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let uploadedImage = null;
     if (state.imageSource === 'ai') {
       uploadedImage = state.aiImages[deviceKey];
+    } else if (state.imageSource === 'hybrid') {
+      if (deviceKey === 'phone') {
+        uploadedImage = getCurrentImage();
+      } else if (deviceKey === 'tablet10') {
+        // 10 吋與 7 吋長寬比相同，共用同一張 AI 圖
+        uploadedImage = state.aiImages['tablet10'] || state.aiImages['tablet7'];
+      } else {
+        uploadedImage = state.aiImages[deviceKey];
+      }
     } else {
       uploadedImage = getCurrentImage();
     }
@@ -1116,13 +1132,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (label) label.classList.toggle('active', radio.checked);
     });
 
-    if (state.imageSource === 'ai') {
-      if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = 'none';
-      if (el.secAiGenerator) el.secAiGenerator.style.display = 'block';
-    } else {
-      if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = 'block';
-      if (el.secAiGenerator) el.secAiGenerator.style.display = 'none';
+    const isHybrid = state.imageSource === 'hybrid';
+    const isAi     = state.imageSource === 'ai';
+
+    if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = isAi ? 'none' : 'block';
+    if (el.secAiGenerator)       el.secAiGenerator.style.display       = (isAi || isHybrid) ? 'block' : 'none';
+    if (el.hybridModeHint)       el.hybridModeHint.style.display        = isHybrid ? 'block' : 'none';
+    if (el.hybridFeatureGroup)   el.hybridFeatureGroup.style.display    = isHybrid ? 'block' : 'none';
+
+    if (el.btnGenerateAi) {
+      el.btnGenerateAi.innerHTML = isHybrid
+        ? '<i data-lucide="sparkles"></i> 生成 Feature Graphic + 平板示意圖（2 張）'
+        : '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     }
+    if (el.hybridFeaturePrompt) el.hybridFeaturePrompt.value = state.aiPromptFeature;
 
     updateResolutionLabels();
     updateScreenshotStrip();
@@ -1375,9 +1399,21 @@ document.addEventListener('DOMContentLoaded', () => {
       finalPrompt += ', ' + el.selectAiStyle.value;
     }
 
-    const devices = ['phone', 'tablet7', 'tablet10', 'feature'];
+    // 混合模式只生 tablet7 + feature；全 AI 模式生全部 4 張
+    const devices = state.imageSource === 'hybrid'
+      ? ['tablet7', 'feature']
+      : ['phone', 'tablet7', 'tablet10', 'feature'];
     let successCount = 0;
     const failed = [];
+
+    // Feature Graphic 使用獨立 prompt（若有設定）或自動加橫幅描述
+    const getDevicePrompt = (device) => {
+      if (device === 'feature') {
+        const override = state.aiPromptFeature.trim();
+        return override || (finalPrompt + ', wide panoramic landscape banner, horizontal composition');
+      }
+      return finalPrompt;
+    };
 
     // 逐一依序生成，避免同時發請求被限流
     for (let i = 0; i < devices.length; i++) {
@@ -1393,7 +1429,8 @@ document.addEventListener('DOMContentLoaded', () => {
         h = DEVICE_SPECS[device][state.orientation].height;
       }
       const deviceSeed = state.aiCohesiveSeed ? seed : (seed + i * 100);
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
+      const devicePrompt = getDevicePrompt(device);
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(devicePrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
 
       // 每張最多重試 2 次
       let loaded = false;
@@ -1436,9 +1473,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      // 混合模式：7 吋與 10 吋長寬比相同，直接共用同一張圖
+      if (state.imageSource === 'hybrid' && state.aiImages['tablet7']) {
+        state.aiImages['tablet10']   = state.aiImages['tablet7'];
+        state.aiDataUrls['tablet10'] = state.aiDataUrls['tablet7'];
+        triggerAllRenders();
+      }
+
       saveState();
       if (failed.length === 0) {
-        showToast('🎉 所有規格圖片生成成功！', 'success');
+        showToast('🎉 生成成功！', 'success');
       } else if (successCount > 0) {
         showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗，可重新點擊生成`, 'success');
       } else {
