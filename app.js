@@ -1244,28 +1244,53 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnAnalyzeMd.disabled = true;
     el.btnAnalyzeMd.innerHTML = '<i class="spinner"></i> AI 分析中，請稍候...';
 
-    // 擷取前 3000 字元避免超出 API 限制
-    const excerpt = content.trim().slice(0, 3000);
-    const systemPrompt = `You are an expert app marketer. Given an app's README or description, write a concise vivid English image generation prompt (max 60 words) for Google Play Store artwork. Focus on the app's core function, key visual elements, and overall mood. Output ONLY the prompt text, no explanation, no quotes.`;
-    const userMessage = `App README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt for this app.`;
+    const systemPrompt = `You are an expert app marketer. Given an app README, write a concise vivid English image generation prompt (max 60 words) for Google Play Store artwork. Output ONLY the prompt, no explanation, no quotes.`;
 
-    try {
+    // 嘗試方法一：POST（支援較長內容）
+    async function tryPost(excerpt) {
       const res = await fetch('https://text.pollinations.ai/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user',   content: userMessage  }
+            { role: 'user',   content: `README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt.` }
           ],
           model: 'openai',
           seed: 42,
           private: true
         })
       });
+      if (!res.ok) throw new Error(`POST HTTP ${res.status}`);
+      const raw = await res.text();
+      // Pollinations 可能回傳純文字或 OpenAI JSON 格式
+      try {
+        const json = JSON.parse(raw);
+        if (json.choices?.[0]?.message?.content) return json.choices[0].message.content.trim();
+      } catch (_) { /* 非 JSON，直接使用純文字 */ }
+      return raw.trim();
+    }
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const generatedPrompt = (await res.text()).trim();
+    // 嘗試方法二：GET fallback（內容較短）
+    async function tryGet(excerpt) {
+      const combined = `Generate a 50-word Google Play Store image prompt for this app: ${excerpt}`;
+      const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&private=true`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`GET HTTP ${res.status}`);
+      return (await res.text()).trim();
+    }
+
+    try {
+      let generatedPrompt = '';
+
+      try {
+        generatedPrompt = await tryPost(content.trim().slice(0, 2500));
+      } catch (postErr) {
+        console.warn('POST failed, trying GET fallback:', postErr);
+        generatedPrompt = await tryGet(content.trim().slice(0, 400));
+      }
+
+      if (!generatedPrompt) throw new Error('Empty response');
 
       el.aiPrompt.value = generatedPrompt;
       state.aiPrompt = generatedPrompt;
