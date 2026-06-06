@@ -1,5 +1,42 @@
 /* PlayShot Studio Stylesheet */
 
+/* ── README 分析區 ─────────────────────────────────────────────── */
+.md-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.md-file-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  border: none;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.btn-accent:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 :root {
   /* Colors */
   --bg-app: #08090d;

@@ -86,6 +86,20 @@
           <h2 class="section-title"><i data-lucide="sparkles"></i> 1. AI 智慧生成設定</h2>
           
           <div class="control-group">
+            <label>從 README.md 自動分析（選用）</label>
+            <div class="md-upload-row">
+              <input type="file" id="md-file-input" accept=".md,.txt" style="display:none;">
+              <button id="btn-pick-md" class="btn btn-secondary btn-sm" type="button">
+                <i data-lucide="file-text"></i> 選取 .md 檔案
+              </button>
+              <span id="md-file-name" class="md-file-name">尚未選取</span>
+            </div>
+            <button id="btn-analyze-md" class="btn btn-accent btn-full" type="button" style="display:none; margin-top:8px;">
+              <i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt
+            </button>
+          </div>
+
+          <div class="control-group">
             <label for="ai-prompt">AI 圖片 Prompt 描述 (支援中文)</label>
             <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
           </div>

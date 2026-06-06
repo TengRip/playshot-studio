@@ -152,7 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
     aiSeed:              document.getElementById('ai-seed'),
     btnRandSeed:         document.getElementById('btn-rand-seed'),
     toggleCohesiveSeed:  document.getElementById('toggle-cohesive-seed'),
-    btnGenerateAi:       document.getElementById('btn-generate-ai')
+    btnGenerateAi:       document.getElementById('btn-generate-ai'),
+    mdFileInput:         document.getElementById('md-file-input'),
+    btnPickMd:           document.getElementById('btn-pick-md'),
+    mdFileName:          document.getElementById('md-file-name'),
+    btnAnalyzeMd:        document.getElementById('btn-analyze-md')
   };
 
   init();
@@ -338,6 +342,22 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`已產生隨機 Seed: ${seed}`, 'success');
       });
       el.btnGenerateAi.addEventListener('click', generateAIImages);
+
+      // README 上傳與分析
+      el.btnPickMd.addEventListener('click', () => el.mdFileInput.click());
+      el.mdFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        el.mdFileName.textContent = file.name;
+        el.mdFileName.title = file.name;
+        el.btnAnalyzeMd.style.display = 'block';
+        el.btnAnalyzeMd.dataset.file = '';
+        // 讀取內容暫存於 dataset
+        const reader = new FileReader();
+        reader.onload = (ev) => { el.btnAnalyzeMd.dataset.content = ev.target.result; };
+        reader.readAsText(file, 'UTF-8');
+      });
+      el.btnAnalyzeMd.addEventListener('click', analyzeMarkdownAndGeneratePrompt);
     }
 
     // 上傳區點擊 / 拖曳
@@ -1214,6 +1234,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (overlay) {
       overlay.classList.toggle('active', show);
+    }
+  }
+
+  async function analyzeMarkdownAndGeneratePrompt() {
+    const content = el.btnAnalyzeMd.dataset.content || '';
+    if (!content.trim()) { showToast('檔案內容為空，請重新選取', 'error'); return; }
+
+    el.btnAnalyzeMd.disabled = true;
+    el.btnAnalyzeMd.innerHTML = '<i class="spinner"></i> AI 分析中，請稍候...';
+
+    // 擷取前 3000 字元避免超出 API 限制
+    const excerpt = content.trim().slice(0, 3000);
+    const systemPrompt = `You are an expert app marketer. Given an app's README or description, write a concise vivid English image generation prompt (max 60 words) for Google Play Store artwork. Focus on the app's core function, key visual elements, and overall mood. Output ONLY the prompt text, no explanation, no quotes.`;
+    const userMessage = `App README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt for this app.`;
+
+    try {
+      const res = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userMessage  }
+          ],
+          model: 'openai',
+          seed: 42,
+          private: true
+        })
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const generatedPrompt = (await res.text()).trim();
+
+      el.aiPrompt.value = generatedPrompt;
+      state.aiPrompt = generatedPrompt;
+      saveState();
+      showToast('✨ Prompt 生成完成，可自行微調後生圖', 'success');
+    } catch (err) {
+      console.error('Markdown analyze failed:', err);
+      showToast('分析失敗，請確認網路連線或稍後再試', 'error');
+    } finally {
+      el.btnAnalyzeMd.disabled = false;
+      el.btnAnalyzeMd.innerHTML = '<i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     }
   }
 
