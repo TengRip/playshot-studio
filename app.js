@@ -37,18 +37,27 @@ document.addEventListener('DOMContentLoaded', () => {
     bgImageDataUrl: null,
     bgImageFileName: '',
     bgOverlayOpacity: 0,
+    imageSource: 'upload',
+    aiPrompt: '',
+    aiStyle: 'app mockup, modern UI, clean design, 3d render',
+    aiSeed: 42,
+    aiCohesiveSeed: true,
+    aiImages: { phone: null, tablet7: null, tablet10: null, feature: null },
+    aiDataUrls: { phone: null, tablet7: null, tablet10: null, feature: null }
   };
 
   const textRanges = {
     phone:    { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     tablet7:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
-    tablet10: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
+    tablet10: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
+    feature:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
   };
 
   const DEVICE_SPECS = {
     phone:    { portrait: { width: 1080, height: 2280 }, landscape: { width: 2280, height: 1080 } },
     tablet7:  { portrait: { width: 1200, height: 1920 }, landscape: { width: 1920, height: 1200 } },
-    tablet10: { portrait: { width: 1600, height: 2560 }, landscape: { width: 2560, height: 1600 } }
+    tablet10: { portrait: { width: 1600, height: 2560 }, landscape: { width: 2560, height: 1600 } },
+    feature:  { portrait: { width: 1024, height: 500 }, landscape: { width: 1024, height: 500 } }
   };
 
   function getCurrentImage() {
@@ -114,9 +123,11 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasPhone:    document.getElementById('canvas-phone'),
     canvasTablet7:  document.getElementById('canvas-tablet7'),
     canvasTablet10: document.getElementById('canvas-tablet10'),
+    canvasFeature:  document.getElementById('canvas-feature'),
     resPhone:       document.getElementById('res-phone'),
     resTablet7:     document.getElementById('res-tablet7'),
     resTablet10:    document.getElementById('res-tablet10'),
+    resFeature:     document.getElementById('res-feature'),
     btnExportAll:    document.getElementById('btn-export-all'),
     btnExportSingles: document.querySelectorAll('.btn-export-single'),
     transZHTop:    document.getElementById('trans-zh-top'),
@@ -132,7 +143,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loaderKO: document.getElementById('loader-ko'),
     toast:        document.getElementById('toast'),
     toastMessage: document.getElementById('toast-message'),
-    toastIcon:    document.getElementById('toast-icon')
+    toastIcon:    document.getElementById('toast-icon'),
+    imageSourceRadios:  document.querySelectorAll('input[name="image-source"]'),
+    secUploadScreenshots: document.getElementById('sec-upload-screenshots'),
+    secAiGenerator:      document.getElementById('sec-ai-generator'),
+    aiPrompt:            document.getElementById('ai-prompt'),
+    selectAiStyle:       document.getElementById('select-ai-style'),
+    aiSeed:              document.getElementById('ai-seed'),
+    btnRandSeed:         document.getElementById('btn-rand-seed'),
+    toggleCohesiveSeed:  document.getElementById('toggle-cohesive-seed'),
+    btnGenerateAi:       document.getElementById('btn-generate-ai')
   };
 
   init();
@@ -169,6 +189,12 @@ document.addEventListener('DOMContentLoaded', () => {
           bgOverlayOpacity: state.bgOverlayOpacity, currentScreenshotIdx: state.currentScreenshotIdx,
           screenshotDataUrls: state.screenshots.map(s => ({ dataUrl: s.dataUrl, fileName: s.fileName })),
           bgImageDataUrl: state.bgImageDataUrl,
+          imageSource: state.imageSource,
+          aiPrompt: state.aiPrompt,
+          aiStyle: state.aiStyle,
+          aiSeed: state.aiSeed,
+          aiCohesiveSeed: state.aiCohesiveSeed,
+          aiDataUrls: state.aiDataUrls
         }));
       } catch (e) { /* 儲存空間不足時靜默忽略 */ }
     }, 500);
@@ -186,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'captionZH_bottom','fontFamily_bottom','fontSize_bottom','lineHeight_bottom','textColor_bottom',
         'textMargin_bottom','showTextShadow_bottom','translations_bottom',
         'currentLangPreview','zoom','layoutMode','bgPattern','bgOverlayOpacity',
+        'imageSource','aiPrompt','aiStyle','aiSeed','aiCohesiveSeed'
       ];
       keys.forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
 
@@ -217,6 +244,21 @@ document.addEventListener('DOMContentLoaded', () => {
           triggerAllRenders();
         };
         img.src = saved.bgImageDataUrl;
+      }
+
+      // 非同步還原 AI 圖片
+      if (saved.aiDataUrls) {
+        state.aiDataUrls = saved.aiDataUrls;
+        Object.keys(saved.aiDataUrls).forEach(device => {
+          const dataUrl = saved.aiDataUrls[device];
+          if (!dataUrl) return;
+          const img = new Image();
+          img.onload = () => {
+            state.aiImages[device] = img;
+            triggerAllRenders();
+          };
+          img.src = dataUrl;
+        });
       }
     } catch (e) { /* 損毀的儲存資料，忽略 */ }
   }
@@ -273,6 +315,30 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupEventListeners() {
     let debounceTop = null, debounceBottom = null;
     let lastTransTop = state.captionZH_top, lastTransBottom = state.captionZH_bottom;
+
+    // 圖片來源切換
+    el.imageSourceRadios.forEach(radio => radio.addEventListener('change', e => {
+      state.imageSource = e.target.value;
+      updateUIState();
+      triggerAllRenders();
+      saveState();
+    }));
+
+    // AI 生成設定監聽
+    if (el.aiPrompt) {
+      el.aiPrompt.addEventListener('input', e => { state.aiPrompt = e.target.value; saveState(); });
+      el.selectAiStyle.addEventListener('change', e => { state.aiStyle = e.target.value; saveState(); });
+      el.aiSeed.addEventListener('input', e => { state.aiSeed = parseInt(e.target.value) || 42; saveState(); });
+      el.toggleCohesiveSeed.addEventListener('change', e => { state.aiCohesiveSeed = e.target.checked; saveState(); });
+      el.btnRandSeed.addEventListener('click', () => {
+        const seed = Math.floor(Math.random() * 1000000);
+        state.aiSeed = seed;
+        el.aiSeed.value = seed;
+        saveState();
+        showToast(`已產生隨機 Seed: ${seed}`, 'success');
+      });
+      el.btnGenerateAi.addEventListener('click', generateAIImages);
+    }
 
     // 上傳區點擊 / 拖曳
     el.uploadZone.addEventListener('click', (e) => {
@@ -626,6 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDeviceCanvas('phone',    el.canvasPhone);
     renderDeviceCanvas('tablet7',  el.canvasTablet7);
     renderDeviceCanvas('tablet10', el.canvasTablet10);
+    renderDeviceCanvas('feature',  el.canvasFeature);
   }
 
   // 中日韓語系強制使用 Noto Sans 對應字型（其他語系尊重使用者設定）
@@ -646,7 +713,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const lang = overrideLang || state.currentLangPreview;
     const topText    = state.translations_top[lang]    || state.translations_top.zh    || '';
     const bottomText = state.translations_bottom[lang] || state.translations_bottom.zh || '';
-    const uploadedImage = getCurrentImage();
+    
+    let uploadedImage = null;
+    if (state.imageSource === 'ai') {
+      uploadedImage = state.aiImages[deviceKey];
+    } else {
+      uploadedImage = getCurrentImage();
+    }
 
     // ── 背景 ──
     if (state.bgType === 'solid') {
@@ -719,6 +792,14 @@ document.addEventListener('DOMContentLoaded', () => {
       for(let i=0;i<mp.length;i++) for(let j=i+1;j<mp.length;j++) if(Math.hypot(mp[i].x-mp[j].x,mp[i].y-mp[j].y)<md){ctx.beginPath();ctx.moveTo(mp[i].x,mp[i].y);ctx.lineTo(mp[j].x,mp[j].y);ctx.stroke();}
       mp.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,Math.max(W*0.002,4.5),0,Math.PI*2);ctx.fill();});
       ctx.restore();
+    }
+
+    // ── 主視覺橫幅滿版圖片 ──
+    if (deviceKey === 'feature') {
+      if (uploadedImage) {
+        drawScreenshotInside(ctx, uploadedImage, 0, 0, W, H);
+      }
+      return;
     }
 
     // ── 文字排版起點 ──
@@ -895,7 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── 拖曳文字 ──────────────────────────────────────────────────────
   function setupDraggableText() {
     let drag = null;
-    ['phone','tablet7','tablet10'].forEach(key => {
+    ['phone','tablet7','tablet10','feature'].forEach(key => {
       const canvas = document.getElementById(`canvas-${key}`);
       if (!canvas) return;
 
@@ -1002,6 +1083,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (el.bgOverlayVal) el.bgOverlayVal.textContent = `${pct}%`;
     }
 
+    // AI 智慧生成 UI 同步
+    if (el.aiPrompt) el.aiPrompt.value = state.aiPrompt;
+    if (el.selectAiStyle) el.selectAiStyle.value = state.aiStyle;
+    if (el.aiSeed) el.aiSeed.value = state.aiSeed;
+    if (el.toggleCohesiveSeed) el.toggleCohesiveSeed.checked = state.aiCohesiveSeed;
+
+    const activeSourceRadio = document.querySelector(`input[name="image-source"][value="${state.imageSource}"]`);
+    if (activeSourceRadio) activeSourceRadio.checked = true;
+    document.querySelectorAll('[name="image-source"]').forEach(radio => {
+      const label = radio.closest('.radio-tab');
+      if (label) label.classList.toggle('active', radio.checked);
+    });
+
+    if (state.imageSource === 'ai') {
+      if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = 'none';
+      if (el.secAiGenerator) el.secAiGenerator.style.display = 'block';
+    } else {
+      if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = 'block';
+      if (el.secAiGenerator) el.secAiGenerator.style.display = 'none';
+    }
+
     updateResolutionLabels();
     updateScreenshotStrip();
   }
@@ -1011,6 +1113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     el.resPhone.textContent   = `${DEVICE_SPECS.phone[p].width} x ${DEVICE_SPECS.phone[p].height}`;
     el.resTablet7.textContent = `${DEVICE_SPECS.tablet7[p].width} x ${DEVICE_SPECS.tablet7[p].height}`;
     el.resTablet10.textContent= `${DEVICE_SPECS.tablet10[p].width} x ${DEVICE_SPECS.tablet10[p].height}`;
+    if (el.resFeature) {
+      el.resFeature.textContent = `${DEVICE_SPECS.feature[p].width} x ${DEVICE_SPECS.feature[p].height}`;
+    }
   }
 
   function adjustZoom() {
@@ -1023,7 +1128,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById(`canvas-${deviceKey}`);
     if (!canvas) return;
     const shot = state.screenshots.length > 1 ? `_截圖${state.currentScreenshotIdx+1}` : '';
-    const name = `PlayShot_${deviceKey}_${state.currentLangPreview.toUpperCase()}_${state.orientation==='portrait'?'直式':'橫式'}${shot}.png`;
+    const langSuffix = state.currentLangPreview.toUpperCase();
+    const oriText = state.orientation === 'portrait' ? '直式' : '橫式';
+    
+    let name;
+    if (deviceKey === 'feature') {
+      name = `PlayShot_FeatureGraphic_${langSuffix}.png`;
+    } else {
+      name = `PlayShot_${deviceKey}_${langSuffix}_${oriText}${shot}.png`;
+    }
+    
     const a = document.createElement('a');
     a.download = name; a.href = canvas.toDataURL('image/png'); a.click();
     showToast(`導出成功: ${name}`, 'success');
@@ -1034,10 +1148,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = true;
     const tempCanvas = document.createElement('canvas');
     const zip = new JSZip();
-    const devices = ['phone','tablet7','tablet10'];
+    const devices = ['phone','tablet7','tablet10','feature'];
     const langs = ['zh','en','ja','ko','all'];
     const ori = state.orientation==='portrait' ? '直式' : '橫式';
-    const shotCount = Math.max(state.screenshots.length, 1);
+    const shotCount = state.imageSource === 'ai' ? 1 : Math.max(state.screenshots.length, 1);
     const total = devices.length * langs.length * shotCount;
     let done = 0;
 
@@ -1051,7 +1165,15 @@ document.addEventListener('DOMContentLoaded', () => {
           for (const device of devices) {
             renderDeviceCanvas(device, tempCanvas, lang);
             const blob = await new Promise(r => tempCanvas.toBlob(r, 'image/png'));
-            folder.file(`${lang.toUpperCase()}_${device}_${ori}.png`, blob);
+            
+            let fileName;
+            if (device === 'feature') {
+              fileName = `${lang.toUpperCase()}_FeatureGraphic.png`;
+            } else {
+              fileName = `${lang.toUpperCase()}_${device}_${ori}.png`;
+            }
+            
+            folder.file(fileName, blob);
             done++;
             btn.innerHTML = `<i class="spinner"></i> 渲染中 ${done} / ${total}`;
           }
@@ -1073,6 +1195,113 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerHTML = '<i data-lucide="download-cloud"></i> 一鍵導出所有規格 & 語言 (ZIP)';
       if (typeof lucide !== 'undefined') lucide.createIcons();
       triggerAllRenders();
+    }
+  }
+
+  function showCanvasLoading(deviceKey, show) {
+    const wrapper = document.querySelector(`.preview-card[data-device="${deviceKey}"] .canvas-wrapper`);
+    if (!wrapper) return;
+    let overlay = wrapper.querySelector('.canvas-loading-overlay');
+    if (!overlay && show) {
+      overlay = document.createElement('div');
+      overlay.className = 'canvas-loading-overlay';
+      overlay.innerHTML = `
+        <div class="canvas-loading-spinner"></div>
+        <div class="canvas-loading-text">AI 正在繪製中...</div>
+      `;
+      wrapper.appendChild(overlay);
+      overlay.offsetHeight; // force reflow
+    }
+    if (overlay) {
+      overlay.classList.toggle('active', show);
+    }
+  }
+
+  async function generateAIImages() {
+    state.aiPrompt = el.aiPrompt.value.trim();
+    if (!state.aiPrompt) {
+      showToast('請先輸入 AI 圖片 Prompt 描述', 'error');
+      return;
+    }
+
+    el.btnGenerateAi.disabled = true;
+    el.btnGenerateAi.innerHTML = '<i class="spinner"></i> AI 正在生成中...';
+
+    const seed = parseInt(el.aiSeed.value) || Math.floor(Math.random() * 1000000);
+    state.aiSeed = seed;
+
+    let finalPrompt = state.aiPrompt;
+    const hasChinese = /[\u4e00-\u9fa5]/.test(state.aiPrompt);
+    if (hasChinese) {
+      try {
+        el.btnGenerateAi.innerHTML = '<i class="spinner"></i> 正在翻譯 Prompt...';
+        finalPrompt = await fetchTranslation(state.aiPrompt, 'en');
+      } catch (err) {
+        console.error('Prompt translation failed', err);
+      }
+    }
+
+    if (el.selectAiStyle.value !== 'none') {
+      finalPrompt += ', ' + el.selectAiStyle.value;
+    }
+
+    const devices = ['phone', 'tablet7', 'tablet10', 'feature'];
+    const promises = devices.map(device => {
+      showCanvasLoading(device, true);
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        let w, h;
+        if (device === 'feature') {
+          w = 1024; h = 500;
+        } else {
+          w = DEVICE_SPECS[device][state.orientation].width;
+          h = DEVICE_SPECS[device][state.orientation].height;
+        }
+
+        const deviceSeed = state.aiCohesiveSeed ? seed : (seed + devices.indexOf(device) * 100);
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
+
+        img.onload = () => {
+          try {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(img, 0, 0);
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            state.aiDataUrls[device] = dataUrl;
+          } catch (e) {
+            console.error('Failed to convert AI image to data URL', e);
+          }
+
+          state.aiImages[device] = img;
+          showCanvasLoading(device, false);
+          resolve({ device, img });
+        };
+
+        img.onerror = (err) => {
+          showCanvasLoading(device, false);
+          reject(new Error(`Failed to load AI image for ${device}`));
+        };
+
+        img.src = url;
+      });
+    });
+
+    try {
+      await Promise.all(promises);
+      showToast('AI 商店圖所有尺寸生成成功！', 'success');
+      triggerAllRenders();
+      saveState();
+    } catch (err) {
+      console.error(err);
+      showToast('部分 AI 圖片載入失敗，請確認網路連線並重試', 'error');
+    } finally {
+      el.btnGenerateAi.disabled = false;
+      el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     }
   }
 });

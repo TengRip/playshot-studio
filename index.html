@@ -40,6 +40,20 @@
       <!-- Left Control Panel -->
       <aside class="control-panel scrollable">
         <section class="section">
+          <h2 class="section-title"><i data-lucide="layers"></i> 圖片來源 (Image Source)</h2>
+          <div class="radio-tabs">
+            <label class="radio-tab active" id="tab-src-upload">
+              <input type="radio" name="image-source" value="upload" checked>
+              📁 上傳截圖
+            </label>
+            <label class="radio-tab" id="tab-src-ai">
+              <input type="radio" name="image-source" value="ai">
+              🤖 AI 智慧生成
+            </label>
+          </div>
+        </section>
+
+        <section class="section" id="sec-upload-screenshots">
           <h2 class="section-title"><i data-lucide="image"></i> 1. 上傳截圖</h2>
           <div class="upload-zone" id="upload-zone">
             <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
@@ -66,6 +80,48 @@
             </div>
             <div class="strip-thumbnails" id="strip-thumbnails"></div>
           </div>
+        </section>
+
+        <section class="section" id="sec-ai-generator" style="display: none;">
+          <h2 class="section-title"><i data-lucide="sparkles"></i> 1. AI 智慧生成設定</h2>
+          
+          <div class="control-group">
+            <label for="ai-prompt">AI 圖片 Prompt 描述 (支援中文)</label>
+            <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
+          </div>
+
+          <div class="control-row">
+            <div class="control-group half">
+              <label for="select-ai-style">藝術風格</label>
+              <select id="select-ai-style">
+                <option value="app mockup, modern UI, clean design, 3d render" selected>現代應用 (UI 3D)</option>
+                <option value="minimalist flat vector illustration, app interface mockup">極簡扁平插畫</option>
+                <option value="game art, digital illustration, vibrant colorful">遊戲美術插畫</option>
+                <option value="cyberpunk neon, glowing tech interface, 3d design">科幻霓虹</option>
+                <option value="retro pixel art style, game screenshot">復古像素</option>
+                <option value="photorealistic realistic high quality professional camera shot">寫實攝影</option>
+                <option value="none">無風格預設 (自由發揮)</option>
+              </select>
+            </div>
+            <div class="control-group half">
+              <label for="ai-seed">Seed 數值</label>
+              <div class="control-row" style="margin-bottom: 0; gap: 8px; align-items: center;">
+                <input type="number" id="ai-seed" value="42" style="padding: 8px; text-align: center;">
+                <button id="btn-rand-seed" class="btn btn-secondary" type="button" style="padding: 8px; width: 36px; height: 36px; flex-shrink: 0;" title="隨機產生 Seed"><i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="checkbox-label" style="margin-top: 4px;">
+              <input type="checkbox" id="toggle-cohesive-seed" checked>
+              使用相同 Seed 保持所有尺寸風格一致
+            </label>
+          </div>
+
+          <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top: 12px;" type="button">
+            <i data-lucide="sparkles"></i> 一鍵生成所有規格圖片
+          </button>
         </section>
 
         <section class="section">
@@ -353,6 +409,18 @@
             </div>
             <div class="canvas-wrapper">
               <canvas id="canvas-tablet10"></canvas>
+            </div>
+          </div>
+
+          <!-- Feature Graphic Card -->
+          <div class="preview-card" data-device="feature">
+            <div class="card-header">
+              <span class="device-name"><i data-lucide="image"></i> 主視覺橫幅 (Feature Graphic)</span>
+              <span class="device-resolution" id="res-feature">1024 x 500</span>
+              <button class="btn-export-single" data-device="feature" title="下載單張圖片"><i data-lucide="download"></i></button>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-feature"></canvas>
             </div>
           </div>
         </div>
