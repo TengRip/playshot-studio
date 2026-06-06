@@ -1376,58 +1376,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const devices = ['phone', 'tablet7', 'tablet10', 'feature'];
-    const promises = devices.map(device => {
+    let successCount = 0;
+    const failed = [];
+
+    // 逐一依序生成，避免同時發請求被限流
+    for (let i = 0; i < devices.length; i++) {
+      const device = devices[i];
+      el.btnGenerateAi.innerHTML = `<i class="spinner"></i> 生成中 ${i + 1} / ${devices.length}（${device}）...`;
       showCanvasLoading(device, true);
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
 
-        let w, h;
-        if (device === 'feature') {
-          w = 1024; h = 500;
-        } else {
-          w = DEVICE_SPECS[device][state.orientation].width;
-          h = DEVICE_SPECS[device][state.orientation].height;
+      let w, h;
+      if (device === 'feature') {
+        w = 1024; h = 500;
+      } else {
+        w = DEVICE_SPECS[device][state.orientation].width;
+        h = DEVICE_SPECS[device][state.orientation].height;
+      }
+      const deviceSeed = state.aiCohesiveSeed ? seed : (seed + i * 100);
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
+
+      // 每張最多重試 2 次
+      let loaded = false;
+      for (let attempt = 0; attempt < 2 && !loaded; attempt++) {
+        if (attempt > 0) {
+          el.btnGenerateAi.innerHTML = `<i class="spinner"></i> 重試 ${device}（${attempt}/1）...`;
+          await new Promise(r => setTimeout(r, 4000));
         }
+        try {
+          await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            const timer = setTimeout(() => reject(new Error('timeout')), 60000);
+            img.onload = () => {
+              clearTimeout(timer);
+              try {
+                const tmp = document.createElement('canvas');
+                tmp.width = w; tmp.height = h;
+                tmp.getContext('2d').drawImage(img, 0, 0);
+                state.aiDataUrls[device] = tmp.toDataURL('image/png');
+              } catch (_) {}
+              state.aiImages[device] = img;
+              resolve();
+            };
+            img.onerror = () => { clearTimeout(timer); reject(new Error('load error')); };
+            img.src = url;
+          });
+          loaded = true;
+          successCount++;
+        } catch (err) {
+          console.warn(`Device ${device} attempt ${attempt + 1} failed:`, err);
+        }
+      }
 
-        const deviceSeed = state.aiCohesiveSeed ? seed : (seed + devices.indexOf(device) * 100);
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
+      showCanvasLoading(device, false);
+      if (!loaded) failed.push(device);
 
-        img.onload = () => {
-          try {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = w;
-            tempCanvas.height = h;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(img, 0, 0);
-            const dataUrl = tempCanvas.toDataURL('image/png');
-            state.aiDataUrls[device] = dataUrl;
-          } catch (e) {
-            console.error('Failed to convert AI image to data URL', e);
-          }
-
-          state.aiImages[device] = img;
-          showCanvasLoading(device, false);
-          resolve({ device, img });
-        };
-
-        img.onerror = (err) => {
-          showCanvasLoading(device, false);
-          reject(new Error(`Failed to load AI image for ${device}`));
-        };
-
-        img.src = url;
-      });
-    });
+      // 每張完成後即時更新畫面
+      triggerAllRenders();
+    }
 
     try {
-      await Promise.all(promises);
-      showToast('AI 商店圖所有尺寸生成成功！', 'success');
-      triggerAllRenders();
       saveState();
-    } catch (err) {
-      console.error(err);
-      showToast('部分 AI 圖片載入失敗，請確認網路連線並重試', 'error');
+      if (failed.length === 0) {
+        showToast('🎉 所有規格圖片生成成功！', 'success');
+      } else if (successCount > 0) {
+        showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗，可重新點擊生成`, 'success');
+      } else {
+        showToast('生成失敗，請稍候再試', 'error');
+      }
     } finally {
       el.btnGenerateAi.disabled = false;
       el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
