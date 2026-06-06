@@ -1237,73 +1237,114 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ── README 本機智慧解析（不依賴外部 API，永遠可用）──────────────
+  function extractPromptFromMarkdown(content) {
+    const lines = content.split('\n');
+
+    // 取 App 名稱（第一個 H1/H2）
+    let appName = '';
+    for (const line of lines) {
+      const m = line.match(/^#{1,2}\s+(.+)/);
+      if (m) { appName = m[1].replace(/[*`[\]]/g, '').trim(); break; }
+    }
+
+    // 取第一段有意義的描述文字
+    let description = '';
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t || t.startsWith('#') || t.startsWith('```') ||
+          t.startsWith('|')  || t.startsWith('!') || t.startsWith('<')) continue;
+      if (t.length > 30) { description = t.replace(/[*`[\]]/g, '').slice(0, 120); break; }
+    }
+
+    // 取前 4 條 bullet point 特色
+    const features = [];
+    for (const line of lines) {
+      const m = line.match(/^[-*•+]\s+(.+)/);
+      if (m && features.length < 4) {
+        const feat = m[1].replace(/\*\*/g, '').replace(/`/g, '').trim();
+        if (feat.length > 5) features.push(feat);
+      }
+    }
+
+    const parts = [];
+    if (appName)          parts.push(`${appName} mobile app`);
+    if (description)      parts.push(description);
+    if (features.length)  parts.push(`featuring ${features.slice(0, 3).join(', ')}`);
+    parts.push('modern clean UI, vibrant colors, Google Play Store screenshot artwork');
+
+    return parts.join(', ').slice(0, 220);
+  }
+
   async function analyzeMarkdownAndGeneratePrompt() {
     const content = el.btnAnalyzeMd.dataset.content || '';
     if (!content.trim()) { showToast('檔案內容為空，請重新選取', 'error'); return; }
 
     el.btnAnalyzeMd.disabled = true;
-    el.btnAnalyzeMd.innerHTML = '<i class="spinner"></i> AI 分析中，請稍候...';
+    el.btnAnalyzeMd.innerHTML = '<i class="spinner"></i> 分析中...';
 
     const systemPrompt = `You are an expert app marketer. Given an app README, write a concise vivid English image generation prompt (max 60 words) for Google Play Store artwork. Output ONLY the prompt, no explanation, no quotes.`;
+    const excerpt = content.trim().slice(0, 2500);
 
-    // 嘗試方法一：POST（支援較長內容）
-    async function tryPost(excerpt) {
-      const res = await fetch('https://text.pollinations.ai/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user',   content: `README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt.` }
-          ],
-          model: 'openai',
-          seed: 42,
-          private: true
-        })
-      });
-      if (!res.ok) throw new Error(`POST HTTP ${res.status}`);
-      const raw = await res.text();
-      // Pollinations 可能回傳純文字或 OpenAI JSON 格式
-      try {
-        const json = JSON.parse(raw);
-        if (json.choices?.[0]?.message?.content) return json.choices[0].message.content.trim();
-      } catch (_) { /* 非 JSON，直接使用純文字 */ }
-      return raw.trim();
+    // Pollinations POST，遇到 429 自動重試（最多 2 次）
+    async function tryPollinationsWithRetry() {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          el.btnAnalyzeMd.innerHTML = `<i class="spinner"></i> 重試中 (${attempt}/2)...`;
+          await new Promise(r => setTimeout(r, attempt * 3000));
+        }
+        const res = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user',   content: `README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt.` }
+            ],
+            model: 'openai', seed: 42, private: true
+          })
+        });
+        if (res.status === 429 && attempt < 2) continue; // rate limit，繼續重試
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.text();
+        try {
+          const json = JSON.parse(raw);
+          if (json.choices?.[0]?.message?.content) return json.choices[0].message.content.trim();
+        } catch (_) { /* plain text */ }
+        return raw.trim();
+      }
+      throw new Error('Rate limited after retries');
     }
 
-    // 嘗試方法二：GET fallback（內容較短）
-    async function tryGet(excerpt) {
-      const combined = `Generate a 50-word Google Play Store image prompt for this app: ${excerpt}`;
-      const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&private=true`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`GET HTTP ${res.status}`);
-      return (await res.text()).trim();
-    }
+    let generatedPrompt = '';
+    let usedFallback = false;
 
     try {
-      let generatedPrompt = '';
-
-      try {
-        generatedPrompt = await tryPost(content.trim().slice(0, 2500));
-      } catch (postErr) {
-        console.warn('POST failed, trying GET fallback:', postErr);
-        generatedPrompt = await tryGet(content.trim().slice(0, 400));
-      }
-
-      if (!generatedPrompt) throw new Error('Empty response');
-
-      el.aiPrompt.value = generatedPrompt;
-      state.aiPrompt = generatedPrompt;
-      saveState();
-      showToast('✨ Prompt 生成完成，可自行微調後生圖', 'success');
+      generatedPrompt = await tryPollinationsWithRetry();
     } catch (err) {
-      console.error('Markdown analyze failed:', err);
-      showToast('分析失敗，請確認網路連線或稍後再試', 'error');
-    } finally {
-      el.btnAnalyzeMd.disabled = false;
-      el.btnAnalyzeMd.innerHTML = '<i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt';
-      if (typeof lucide !== 'undefined') lucide.createIcons();
+      console.warn('Pollinations API failed, using local extraction:', err);
+      generatedPrompt = extractPromptFromMarkdown(content);
+      usedFallback = true;
     }
+
+    if (!generatedPrompt.trim()) {
+      generatedPrompt = extractPromptFromMarkdown(content);
+      usedFallback = true;
+    }
+
+    el.aiPrompt.value = generatedPrompt;
+    state.aiPrompt = generatedPrompt;
+    saveState();
+
+    if (usedFallback) {
+      showToast('📄 已從 README 關鍵字提取 Prompt（建議手動潤色）', 'success');
+    } else {
+      showToast('✨ AI Prompt 生成完成，可自行微調後生圖', 'success');
+    }
+
+    el.btnAnalyzeMd.disabled = false;
+    el.btnAnalyzeMd.innerHTML = '<i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 
   async function generateAIImages() {
