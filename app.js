@@ -398,6 +398,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Event Listeners ────────────────────────────────────────────
   function setupEventListeners() {
+    // ── Panel Tab 切換 ────────────────────────────────────────────
+    document.querySelectorAll('.panel-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const content = document.getElementById('tab-' + tab.dataset.tab);
+        if (content) content.classList.add('active');
+      });
+    });
+
     let debounceTop = null, debounceBottom = null;
     let lastTransTop = state.captionZH_top, lastTransBottom = state.captionZH_bottom;
 

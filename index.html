@@ -38,369 +38,425 @@
 
     <div class="main-layout">
       <!-- Left Control Panel -->
-      <aside class="control-panel scrollable">
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="smartphone"></i> 0. 你的 App 是？</h2>
-          <div class="toggle-buttons" id="app-ori-picker">
-            <button class="toggle-btn" data-app-ori="portrait">
-              <i data-lucide="smartphone"></i> 直式 App
-            </button>
-            <button class="toggle-btn" data-app-ori="landscape">
-              <i data-lucide="smartphone" style="transform:rotate(90deg);"></i> 橫式 App
-            </button>
-          </div>
-          <p id="ori-hint" class="mode-hint" style="margin-top:8px; display:none;"></p>
-        </section>
-
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="layers"></i> 圖片來源 (Image Source)</h2>
-          <div class="radio-tabs">
-            <label class="radio-tab active" id="tab-src-upload">
-              <input type="radio" name="image-source" value="upload" checked>
-              📁 上傳截圖
-            </label>
-            <label class="radio-tab" id="tab-src-hybrid">
-              <input type="radio" name="image-source" value="hybrid">
-              🔀 混合模式
-            </label>
-            <label class="radio-tab" id="tab-src-ai">
-              <input type="radio" name="image-source" value="ai">
-              🤖 全 AI 生成
-            </label>
-          </div>
-          <p id="hybrid-mode-hint" class="mode-hint" style="display:none;">手機格使用上傳截圖，Feature Graphic 與平板格由 AI 生成（只需生 2 張）</p>
-        </section>
-
-        <section class="section" id="sec-upload-screenshots">
-          <h2 class="section-title"><i data-lucide="image"></i> 1. 上傳截圖</h2>
-          <div class="upload-zone" id="upload-zone">
-            <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
-            <div class="upload-prompt" id="upload-prompt-empty">
-              <i data-lucide="upload-cloud" class="upload-icon"></i>
-              <p class="primary-text">拖曳圖片至此或點擊上傳</p>
-              <p class="secondary-text">支援 PNG, JPG｜可同時選多張</p>
-            </div>
-            <div class="upload-prompt upload-prompt-add" id="upload-prompt-add" style="display: none;">
-              <i data-lucide="plus-circle" class="upload-icon" style="width: 22px; height: 22px;"></i>
-              <p class="secondary-text">拖曳或點擊新增截圖</p>
-            </div>
-          </div>
-          <!-- 截圖縮圖條 -->
-          <div class="screenshot-strip" id="screenshot-strip" style="display: none;">
-            <div class="strip-header">
-              <span id="screenshot-counter" class="strip-counter">1 / 1</span>
-              <div class="strip-nav">
-                <button id="btn-prev-shot" class="nav-btn" title="上一張"><i data-lucide="chevron-left"></i></button>
-                <button id="btn-next-shot" class="nav-btn" title="下一張"><i data-lucide="chevron-right"></i></button>
-                <button id="btn-add-shot"  class="nav-btn" title="新增截圖"><i data-lucide="plus"></i></button>
-                <button id="btn-remove-shot" class="nav-btn danger" title="移除此截圖"><i data-lucide="trash-2"></i></button>
-              </div>
-            </div>
-            <div class="strip-thumbnails" id="strip-thumbnails"></div>
-          </div>
-        </section>
-
-        <section class="section" id="sec-ai-generator" style="display: none;">
-          <h2 class="section-title"><i data-lucide="sparkles"></i> 1. AI 智慧生成設定</h2>
-          
-          <div class="control-group">
-            <label for="ai-prompt">AI 圖片 Prompt 描述 (支援中文)</label>
-            <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
-          </div>
-
-          <div class="control-group">
-            <label>App Icon 配色（選用）</label>
-            <input type="file" id="icon-file-input" accept="image/*" style="display:none;">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <button id="btn-pick-icon" class="btn btn-secondary" type="button" style="padding:8px 12px; font-size:0.82rem;">
-                <i data-lucide="image-plus" style="width:14px;height:14px;"></i> 上傳 Icon
-              </button>
-              <div id="icon-preview-area" style="display:none; align-items:center; gap:6px;">
-                <img id="icon-preview" src="" alt="icon" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
-                <div id="icon-color-swatches" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-                <button id="btn-remove-icon" type="button" title="移除 Icon" style="background:rgba(239,68,68,0.85);color:#fff;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
-                  <i data-lucide="x" style="width:12px;height:12px;"></i>
-                </button>
-              </div>
-            </div>
-            <p id="icon-colors-text" class="mode-hint" style="margin-top:4px; display:none;"></p>
-          </div>
-
-          <div class="control-row">
-            <div class="control-group half">
-              <label for="select-ai-style">藝術風格</label>
-              <select id="select-ai-style">
-                <option value="app mockup, modern UI, clean design, 3d render" selected>現代應用 (UI 3D)</option>
-                <option value="minimalist flat vector illustration, app interface mockup">極簡扁平插畫</option>
-                <option value="game art, digital illustration, vibrant colorful">遊戲美術插畫</option>
-                <option value="cyberpunk neon, glowing tech interface, 3d design">科幻霓虹</option>
-                <option value="retro pixel art style, game screenshot">復古像素</option>
-                <option value="photorealistic realistic high quality professional camera shot">寫實攝影</option>
-                <option value="none">無風格預設 (自由發揮)</option>
-              </select>
-            </div>
-            <div class="control-group half">
-              <label for="ai-seed">Seed 數值</label>
-              <div class="control-row" style="margin-bottom: 0; gap: 8px; align-items: center;">
-                <input type="number" id="ai-seed" value="42" style="padding: 8px; text-align: center;">
-                <button id="btn-rand-seed" class="btn btn-secondary" type="button" style="padding: 8px; width: 36px; height: 36px; flex-shrink: 0;" title="隨機產生 Seed"><i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i></button>
-              </div>
-            </div>
-          </div>
-
-          <div class="control-group">
-            <label class="checkbox-label" style="margin-top: 4px;">
-              <input type="checkbox" id="toggle-cohesive-seed" checked>
-              使用相同 Seed 保持所有尺寸風格一致
-            </label>
-          </div>
-
-          <div class="control-group" id="hybrid-feature-group" style="display:none;">
-            <label for="hybrid-feature-prompt">Feature Graphic 專屬 Prompt（選用）</label>
-            <textarea id="hybrid-feature-prompt" rows="2" placeholder="留空則自動在平板 Prompt 加上橫幅描述。例如：sweeping landscape banner with app logo and tagline..."></textarea>
-          </div>
-
-          <div class="control-group">
-            <label for="input-openai-key">OpenAI API Key</label>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="password" id="input-openai-key" placeholder="sk-..." autocomplete="off" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:0.85rem;">
-              <button id="btn-toggle-key" class="btn btn-secondary" type="button" style="padding:8px; width:36px; height:36px; flex-shrink:0;" title="顯示/隱藏 Key"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>
-            </div>
-            <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">僅存於本機 localStorage，不會外傳</p>
-          </div>
-
-          <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top: 12px;" type="button">
-            <i data-lucide="sparkles"></i> 一鍵生成所有規格圖片
+      <aside class="control-panel">
+        <!-- ── Tab Nav ──────────────────────────────────────── -->
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="image">
+            <i data-lucide="image" style="width:16px;height:16px;"></i>
+            <span>圖片</span>
           </button>
-        </section>
+          <button class="panel-tab" data-tab="design">
+            <i data-lucide="palette" style="width:16px;height:16px;"></i>
+            <span>設計</span>
+          </button>
+          <button class="panel-tab" data-tab="text">
+            <i data-lucide="type" style="width:16px;height:16px;"></i>
+            <span>文字</span>
+          </button>
+          <button class="panel-tab" data-tab="translate">
+            <i data-lucide="languages" style="width:16px;height:16px;"></i>
+            <span>翻譯</span>
+          </button>
+        </div>
 
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="settings"></i> 2. 顯示與排版設定</h2>
-          
-          <div class="control-group">
-            <label>畫布方向</label>
-            <div class="toggle-buttons">
-              <button class="toggle-btn active" data-orientation="portrait">
-                <i data-lucide="smartphone"></i> 直式 (Portrait)
+        <!-- ── Tab 1: 圖片 ───────────────────────────────────── -->
+        <div class="tab-content active" id="tab-image">
+
+          <!-- App 類型 -->
+          <div class="panel-section">
+            <div class="section-label">App 類型</div>
+            <div class="toggle-buttons" id="app-ori-picker">
+              <button class="toggle-btn" data-app-ori="portrait">
+                <i data-lucide="smartphone"></i> 直式 App
               </button>
-              <button class="toggle-btn" data-orientation="landscape">
-                <i data-lucide="smartphone" style="transform: rotate(90deg);"></i> 橫式 (Landscape)
+              <button class="toggle-btn" data-app-ori="landscape">
+                <i data-lucide="smartphone" style="transform:rotate(90deg);"></i> 橫式 App
               </button>
             </div>
+            <p id="ori-hint" class="mode-hint" style="margin-top:8px; display:none;"></p>
           </div>
 
-          <div class="control-group">
-            <label>排版樣式</label>
-            <select id="select-layout-mode">
-              <option value="vertical" selected>上下加註 (垂直居中)</option>
-              <option value="left">左側加註 (Mockup 居右)</option>
-              <option value="right">右側加註 (Mockup 居左)</option>
-            </select>
-          </div>
-
-          <div class="control-row">
-            <div class="control-group half">
-              <label for="select-fit-mode">截圖適配</label>
-              <select id="select-fit-mode">
-                <option value="contain">完整包含 (Contain)</option>
-                <option value="cover" selected>填滿外框 (Cover)</option>
-                <option value="stretch">拉伸填滿 (Stretch)</option>
-              </select>
-            </div>
-            <div class="control-group half">
-              <label for="toggle-device-frame" class="checkbox-label">
-                <input type="checkbox" id="toggle-device-frame" checked>
-                顯示手機外框
-              </label>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="palette"></i> 3. 背景設計</h2>
-          <div class="control-group">
-            <label>背景類型</label>
+          <!-- 圖片來源 -->
+          <div class="panel-section">
+            <div class="section-label">圖片來源</div>
             <div class="radio-tabs">
-              <label class="radio-tab active">
-                <input type="radio" name="bg-type" value="gradient" checked>
-                漸層色
+              <label class="radio-tab active" id="tab-src-upload">
+                <input type="radio" name="image-source" value="upload" checked>
+                📁 上傳截圖
               </label>
-              <label class="radio-tab">
-                <input type="radio" name="bg-type" value="solid">
-                單色
+              <label class="radio-tab" id="tab-src-hybrid">
+                <input type="radio" name="image-source" value="hybrid">
+                🔀 混合
               </label>
-              <label class="radio-tab">
-                <input type="radio" name="bg-type" value="image">
-                背景圖
+              <label class="radio-tab" id="tab-src-ai">
+                <input type="radio" name="image-source" value="ai">
+                🤖 全 AI
               </label>
             </div>
+            <p id="hybrid-mode-hint" class="mode-hint" style="display:none;">手機格使用上傳截圖，Feature Graphic 與平板格由 AI 生成（只需生 2 張）</p>
           </div>
 
-          <!-- Solid Color Controls -->
-          <div class="control-group bg-control" id="bg-solid-control" style="display: none;">
-            <label for="color-bg">背景顏色</label>
-            <div class="color-picker-wrapper">
-              <input type="color" id="color-bg" value="#3b82f6">
-              <input type="text" id="color-bg-hex" value="#3b82f6" class="hex-input">
-            </div>
-          </div>
-
-          <!-- Gradient Controls -->
-          <div class="control-group bg-control" id="bg-gradient-control">
-            <label>漸層色彩</label>
-            <div class="color-picker-row">
-              <div class="color-picker-wrapper">
-                <span>起始</span>
-                <input type="color" id="color-grad-start" value="#1e1b4b">
+          <!-- 上傳截圖 -->
+          <div class="panel-section" id="sec-upload-screenshots">
+            <div class="section-label">上傳截圖</div>
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
+              <div class="upload-prompt" id="upload-prompt-empty">
+                <i data-lucide="upload-cloud" class="upload-icon"></i>
+                <p class="primary-text">拖曳圖片至此或點擊上傳</p>
+                <p class="secondary-text">支援 PNG, JPG｜可同時選多張</p>
               </div>
-              <div class="color-picker-wrapper">
-                <span>結束</span>
-                <input type="color" id="color-grad-end" value="#311042">
+              <div class="upload-prompt upload-prompt-add" id="upload-prompt-add" style="display: none;">
+                <i data-lucide="plus-circle" class="upload-icon" style="width: 22px; height: 22px;"></i>
+                <p class="secondary-text">拖曳或點擊新增截圖</p>
               </div>
             </div>
-            <div class="gradient-presets">
-              <button class="preset-btn" style="background: linear-gradient(135deg, #1e1b4b, #311042);" data-start="#1e1b4b" data-end="#311042" title="Midnight Velvet"></button>
-              <button class="preset-btn" style="background: linear-gradient(135deg, #0f172a, #1e293b);" data-start="#0f172a" data-end="#1e293b" title="Slate Shadow"></button>
-              <button class="preset-btn" style="background: linear-gradient(135deg, #4f46e5, #06b6d4);" data-start="#4f46e5" data-end="#06b6d4" title="Ocean Breeze"></button>
-              <button class="preset-btn" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);" data-start="#ec4899" data-end="#8b5cf6" title="Sunset Neon"></button>
-              <button class="preset-btn" style="background: linear-gradient(135deg, #10b981, #059669);" data-start="#10b981" data-end="#059669" title="Forest Fresh"></button>
-              <button class="preset-btn" style="background: linear-gradient(135deg, #f59e0b, #e11d48);" data-start="#f59e0b" data-end="#e11d48" title="Fire Glow"></button>
-            </div>
-          </div>
-
-          <!-- Background Image Controls -->
-          <div class="control-group bg-control" id="bg-image-control" style="display: none;">
-            <label>自訂背景圖片</label>
-            <div class="upload-zone" id="bg-image-upload-zone" style="min-height: 80px; padding: 12px; border-radius: 8px;">
-              <input type="file" id="bg-image-input" accept="image/*" style="display: none;">
-              <div class="upload-prompt" id="bg-image-prompt">
-                <i data-lucide="image" class="upload-icon" style="width: 24px; height: 24px; margin-bottom: 4px;"></i>
-                <p class="primary-text" style="font-size: 0.8rem;">點擊上傳背景圖</p>
+            <div class="screenshot-strip" id="screenshot-strip" style="display: none;">
+              <div class="strip-header">
+                <span id="screenshot-counter" class="strip-counter">1 / 1</span>
+                <div class="strip-nav">
+                  <button id="btn-prev-shot" class="nav-btn" title="上一張"><i data-lucide="chevron-left"></i></button>
+                  <button id="btn-next-shot" class="nav-btn" title="下一張"><i data-lucide="chevron-right"></i></button>
+                  <button id="btn-add-shot" class="nav-btn" title="新增截圖"><i data-lucide="plus"></i></button>
+                  <button id="btn-remove-shot" class="nav-btn danger" title="移除此截圖"><i data-lucide="trash-2"></i></button>
+                </div>
               </div>
-              <div class="upload-preview" id="bg-image-preview" style="display: none; border-radius: 8px;">
-                <img id="bg-image-thumbnail" src="" alt="Bg Thumbnail" style="object-fit: cover; width: 100%; height: 100%;">
-                <button class="btn-remove-img" id="btn-remove-bg-image" title="移除背景圖" style="width: 24px; height: 24px; top: 4px; right: 4px;"><i data-lucide="x" style="width: 12px; height: 12px;"></i></button>
+              <div class="strip-thumbnails" id="strip-thumbnails"></div>
+            </div>
+          </div>
+
+          <!-- AI 生成設定 -->
+          <div class="panel-section" id="sec-ai-generator" style="display: none;">
+            <div class="section-label">AI 生成設定</div>
+
+            <div class="control-group">
+              <label for="ai-prompt">Prompt 描述（支援中文）</label>
+              <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
+            </div>
+
+            <div class="control-group">
+              <label>App Icon 配色（選用）</label>
+              <input type="file" id="icon-file-input" accept="image/*" style="display:none;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <button id="btn-pick-icon" class="btn btn-secondary btn-sm" type="button">
+                  <i data-lucide="image-plus" style="width:14px;height:14px;"></i> 上傳 Icon
+                </button>
+                <div id="icon-preview-area" style="display:none; align-items:center; gap:6px;">
+                  <img id="icon-preview" src="" alt="icon" style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid #e5e7eb;">
+                  <div id="icon-color-swatches" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
+                  <button id="btn-remove-icon" type="button" title="移除 Icon" style="background:rgba(239,68,68,0.85);color:#fff;border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
+                    <i data-lucide="x" style="width:11px;height:11px;"></i>
+                  </button>
+                </div>
+              </div>
+              <p id="icon-colors-text" class="mode-hint" style="margin-top:6px; display:none;"></p>
+            </div>
+
+            <div class="control-row">
+              <div class="control-group half">
+                <label for="select-ai-style">藝術風格</label>
+                <select id="select-ai-style">
+                  <option value="app mockup, modern UI, clean design, 3d render" selected>現代應用 (UI 3D)</option>
+                  <option value="minimalist flat vector illustration, app interface mockup">極簡扁平插畫</option>
+                  <option value="game art, digital illustration, vibrant colorful">遊戲美術插畫</option>
+                  <option value="cyberpunk neon, glowing tech interface, 3d design">科幻霓虹</option>
+                  <option value="retro pixel art style, game screenshot">復古像素</option>
+                  <option value="photorealistic realistic high quality professional camera shot">寫實攝影</option>
+                  <option value="none">無風格預設</option>
+                </select>
+              </div>
+              <div class="control-group half">
+                <label for="ai-seed">Seed</label>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <input type="number" id="ai-seed" value="42" style="text-align:center;">
+                  <button id="btn-rand-seed" class="btn btn-secondary" type="button" style="padding:8px;width:34px;height:34px;flex-shrink:0;" title="隨機 Seed"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+                </div>
               </div>
             </div>
-            <!-- 暗色遮罩（改善文字可讀性） -->
-            <div class="control-group" style="margin-top: 10px;">
-              <label for="range-bg-overlay">暗色遮罩濃度 <span id="bg-overlay-val" style="color: var(--text-primary); font-weight: 600;">0%</span></label>
-              <input type="range" id="range-bg-overlay" min="0" max="80" value="0" step="5">
+
+            <div class="control-group">
+              <label class="checkbox-label" style="margin-top:0;">
+                <input type="checkbox" id="toggle-cohesive-seed" checked>
+                使用相同 Seed 保持風格一致
+              </label>
             </div>
+
+            <div class="control-group" id="hybrid-feature-group" style="display:none;">
+              <label for="hybrid-feature-prompt">Feature Graphic 專屬 Prompt（選用）</label>
+              <textarea id="hybrid-feature-prompt" rows="2" placeholder="留空則自動加上橫幅描述..."></textarea>
+            </div>
+
+            <div class="control-group">
+              <label for="input-openai-key">OpenAI API Key</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="password" id="input-openai-key" placeholder="sk-..." autocomplete="off" style="flex:1;">
+                <button id="btn-toggle-key" class="btn btn-secondary" type="button" style="padding:8px;width:34px;height:34px;flex-shrink:0;" title="顯示/隱藏 Key"><i data-lucide="eye" style="width:13px;height:13px;"></i></button>
+              </div>
+              <p style="font-size:0.72rem; color:#9ca3af; margin-top:4px;">僅存於本機 localStorage，不會外傳</p>
+            </div>
+
+            <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top:8px;" type="button">
+              <i data-lucide="sparkles"></i> 一鍵生成所有規格圖片
+            </button>
           </div>
 
-          <!-- Background Pattern Controls -->
-          <div class="control-group" style="margin-top: 12px;">
-            <label for="select-bg-pattern">背景裝飾圖案</label>
-            <select id="select-bg-pattern">
-              <option value="none" selected>無裝飾 (None)</option>
-              <option value="mesh">霓虹光暈 (Mesh Blobs)</option>
-              <option value="aurora">北極光暈 (Aurora)</option>
-              <option value="bokeh">散景光球 (Bokeh)</option>
-              <option value="grid">科技網格 (Cyber Grid)</option>
-              <option value="diamond">菱形格紋 (Diamond Grid)</option>
-              <option value="dots">科技點矩陣 (Dotted Matrix)</option>
-              <option value="network">星座幾何網格 (Constellation)</option>
-              <option value="glow">霓虹背光源 (Backing Glow)</option>
-            </select>
-          </div>
-        </section>
+        </div><!-- end tab-image -->
 
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="type"></i> 4. 上方文字設定</h2>
-          <div class="control-group">
-            <label for="text-caption-top">中文標題 (上方)</label>
-            <textarea id="text-caption-top" placeholder="請輸入上方標題，例如：簡約明瞭的財務圖表">簡約明瞭的財務圖表</textarea>
-          </div>
+        <!-- ── Tab 2: 設計 ───────────────────────────────────── -->
+        <div class="tab-content" id="tab-design">
 
-          <div class="control-row">
-            <div class="control-group half">
-              <label for="select-font-top">字型 (上方) <span class="font-note">中日韓自動套用 Noto</span></label>
-              <select id="select-font-top">
-                <option value="Noto Sans TC">Noto Sans 繁中</option>
-                <option value="Inter">Inter (Sans)</option>
-                <option value="Outfit" selected>Outfit (Modern)</option>
+          <!-- 排版 -->
+          <div class="panel-section">
+            <div class="section-label">排版</div>
+            <div class="control-group">
+              <label>排版樣式</label>
+              <select id="select-layout-mode">
+                <option value="vertical" selected>上下加註（垂直居中）</option>
+                <option value="left">左側加註（Mockup 居右）</option>
+                <option value="right">右側加註（Mockup 居左）</option>
               </select>
             </div>
-            <div class="control-group half">
-              <label for="color-text-top">顏色 (上方)</label>
-              <input type="color" id="color-text-top" value="#ffffff">
+            <div class="control-row">
+              <div class="control-group half">
+                <label for="select-fit-mode">截圖適配</label>
+                <select id="select-fit-mode">
+                  <option value="contain">完整包含</option>
+                  <option value="cover" selected>填滿外框</option>
+                  <option value="stretch">拉伸填滿</option>
+                </select>
+              </div>
+              <div class="control-group half" style="display:flex;align-items:flex-end;padding-bottom:2px;">
+                <label for="toggle-device-frame" class="checkbox-label" style="margin-top:0;">
+                  <input type="checkbox" id="toggle-device-frame" checked>
+                  顯示手機外框
+                </label>
+              </div>
             </div>
           </div>
 
-          <div class="control-row">
-            <div class="control-group third">
-              <label for="input-font-size-top">字級 (px)</label>
-              <input type="number" id="input-font-size-top" value="70" min="20" max="150">
-            </div>
-            <div class="control-group third">
-              <label for="input-line-height-top">行高 (em)</label>
-              <input type="number" id="input-line-height-top" value="1.3" step="0.1" min="0.8" max="2.0">
-            </div>
-            <div class="control-group third">
-              <label for="input-margin-top">邊距 (px)</label>
-              <input type="number" id="input-margin-top" value="80" min="10" max="250">
-            </div>
+          <!-- 隱藏但保留供 JS 使用的方向按鈕 -->
+          <div style="display:none;">
+            <button class="toggle-btn active" data-orientation="portrait"></button>
+            <button class="toggle-btn" data-orientation="landscape"></button>
           </div>
 
-          <div class="control-group">
-            <label class="checkbox-label" style="margin-top: 12px;">
-              <input type="checkbox" id="toggle-shadow-top" checked>
-              開啟上方文字陰影
-            </label>
-          </div>
-        </section>
+          <!-- 背景設計 -->
+          <div class="panel-section">
+            <div class="section-label">背景設計</div>
+            <div class="control-group">
+              <label>背景類型</label>
+              <div class="radio-tabs">
+                <label class="radio-tab active">
+                  <input type="radio" name="bg-type" value="gradient" checked>漸層色
+                </label>
+                <label class="radio-tab">
+                  <input type="radio" name="bg-type" value="solid">單色
+                </label>
+                <label class="radio-tab">
+                  <input type="radio" name="bg-type" value="image">背景圖
+                </label>
+              </div>
+            </div>
 
-        <section class="section">
-          <h2 class="section-title"><i data-lucide="type"></i> 5. 下方文字設定</h2>
-          <div class="control-group">
-            <label for="text-caption-bottom">中文標題 (下方)</label>
-            <textarea id="text-caption-bottom" placeholder="請輸入下方輔助說明，例如：一秒生成專屬分析報告"></textarea>
-          </div>
+            <div class="control-group bg-control" id="bg-solid-control" style="display: none;">
+              <label for="color-bg">背景顏色</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="color-bg" value="#3b82f6">
+                <input type="text" id="color-bg-hex" value="#3b82f6" class="hex-input">
+              </div>
+            </div>
 
-          <div class="control-row">
-            <div class="control-group half">
-              <label for="select-font-bottom">字型 (下方) <span class="font-note">中日韓自動套用 Noto</span></label>
-              <select id="select-font-bottom">
-                <option value="Noto Sans TC">Noto Sans 繁中</option>
-                <option value="Inter">Inter (Sans)</option>
-                <option value="Outfit" selected>Outfit (Modern)</option>
+            <div class="control-group bg-control" id="bg-gradient-control">
+              <label>漸層色彩</label>
+              <div class="color-picker-row">
+                <div class="color-picker-wrapper">
+                  <span>起始</span><input type="color" id="color-grad-start" value="#1e1b4b">
+                </div>
+                <div class="color-picker-wrapper">
+                  <span>結束</span><input type="color" id="color-grad-end" value="#311042">
+                </div>
+              </div>
+              <div class="gradient-presets">
+                <button class="preset-btn" style="background:linear-gradient(135deg,#1e1b4b,#311042);" data-start="#1e1b4b" data-end="#311042" title="Midnight Velvet"></button>
+                <button class="preset-btn" style="background:linear-gradient(135deg,#0f172a,#1e293b);" data-start="#0f172a" data-end="#1e293b" title="Slate Shadow"></button>
+                <button class="preset-btn" style="background:linear-gradient(135deg,#4f46e5,#06b6d4);" data-start="#4f46e5" data-end="#06b6d4" title="Ocean Breeze"></button>
+                <button class="preset-btn" style="background:linear-gradient(135deg,#ec4899,#8b5cf6);" data-start="#ec4899" data-end="#8b5cf6" title="Sunset Neon"></button>
+                <button class="preset-btn" style="background:linear-gradient(135deg,#10b981,#059669);" data-start="#10b981" data-end="#059669" title="Forest Fresh"></button>
+                <button class="preset-btn" style="background:linear-gradient(135deg,#f59e0b,#e11d48);" data-start="#f59e0b" data-end="#e11d48" title="Fire Glow"></button>
+              </div>
+            </div>
+
+            <div class="control-group bg-control" id="bg-image-control" style="display: none;">
+              <label>自訂背景圖片</label>
+              <div class="upload-zone" id="bg-image-upload-zone" style="min-height:80px;padding:12px;border-radius:8px;">
+                <input type="file" id="bg-image-input" accept="image/*" style="display:none;">
+                <div class="upload-prompt" id="bg-image-prompt">
+                  <i data-lucide="image" class="upload-icon" style="width:24px;height:24px;margin-bottom:4px;"></i>
+                  <p class="primary-text" style="font-size:0.8rem;">點擊上傳背景圖</p>
+                </div>
+                <div class="upload-preview" id="bg-image-preview" style="display:none;border-radius:8px;">
+                  <img id="bg-image-thumbnail" src="" alt="Bg Thumbnail" style="object-fit:cover;width:100%;height:100%;">
+                  <button class="btn-remove-img" id="btn-remove-bg-image" title="移除背景圖" style="width:24px;height:24px;top:4px;right:4px;"><i data-lucide="x" style="width:12px;height:12px;"></i></button>
+                </div>
+              </div>
+              <div class="control-group" style="margin-top:10px;">
+                <label for="range-bg-overlay">暗色遮罩 <span id="bg-overlay-val" style="font-weight:600;">0%</span></label>
+                <input type="range" id="range-bg-overlay" min="0" max="80" value="0" step="5">
+              </div>
+            </div>
+
+            <div class="control-group" style="margin-top:12px;">
+              <label for="select-bg-pattern">背景裝飾圖案</label>
+              <select id="select-bg-pattern">
+                <option value="none" selected>無裝飾</option>
+                <option value="mesh">霓虹光暈</option>
+                <option value="aurora">北極光暈</option>
+                <option value="bokeh">散景光球</option>
+                <option value="grid">科技網格</option>
+                <option value="diamond">菱形格紋</option>
+                <option value="dots">科技點矩陣</option>
+                <option value="network">星座幾何網格</option>
+                <option value="glow">霓虹背光源</option>
               </select>
             </div>
-            <div class="control-group half">
-              <label for="color-text-bottom">顏色 (下方)</label>
-              <input type="color" id="color-text-bottom" value="#a5b4fc">
-            </div>
           </div>
 
-          <div class="control-row">
-            <div class="control-group third">
-              <label for="input-font-size-bottom">字級 (px)</label>
-              <input type="number" id="input-font-size-bottom" value="45" min="20" max="150">
-            </div>
-            <div class="control-group third">
-              <label for="input-line-height-bottom">行高 (em)</label>
-              <input type="number" id="input-line-height-bottom" value="1.3" step="0.1" min="0.8" max="2.0">
-            </div>
-            <div class="control-group third">
-              <label for="input-margin-bottom">邊距 (px)</label>
-              <input type="number" id="input-margin-bottom" value="80" min="10" max="250">
-            </div>
-          </div>
+        </div><!-- end tab-design -->
 
-          <div class="control-group">
-            <label class="checkbox-label" style="margin-top: 12px;">
-              <input type="checkbox" id="toggle-shadow-bottom" checked>
-              開啟下方文字陰影
+        <!-- ── Tab 3: 文字 ───────────────────────────────────── -->
+        <div class="tab-content" id="tab-text">
+
+          <div class="panel-section">
+            <div class="section-label">上方文字</div>
+            <div class="control-group">
+              <label for="text-caption-top">標題文字</label>
+              <textarea id="text-caption-top" placeholder="例如：簡約明瞭的財務圖表">簡約明瞭的財務圖表</textarea>
+            </div>
+            <div class="control-row">
+              <div class="control-group half">
+                <label for="select-font-top">字型 <span class="font-note">中日韓自動 Noto</span></label>
+                <select id="select-font-top">
+                  <option value="Noto Sans TC">Noto Sans 繁中</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Outfit" selected>Outfit</option>
+                </select>
+              </div>
+              <div class="control-group half">
+                <label for="color-text-top">文字顏色</label>
+                <input type="color" id="color-text-top" value="#ffffff" class="color-full">
+              </div>
+            </div>
+            <div class="control-row">
+              <div class="control-group third">
+                <label for="input-font-size-top">字級 px</label>
+                <input type="number" id="input-font-size-top" value="70" min="20" max="150">
+              </div>
+              <div class="control-group third">
+                <label for="input-line-height-top">行高</label>
+                <input type="number" id="input-line-height-top" value="1.3" step="0.1" min="0.8" max="2.0">
+              </div>
+              <div class="control-group third">
+                <label for="input-margin-top">邊距</label>
+                <input type="number" id="input-margin-top" value="80" min="10" max="250">
+              </div>
+            </div>
+            <label class="checkbox-label" style="margin-top:0;">
+              <input type="checkbox" id="toggle-shadow-top" checked>文字陰影
             </label>
           </div>
-        </section>
 
-        <section class="section">
-          <button id="btn-translate" class="btn btn-secondary btn-full">
-            <i data-lucide="languages"></i> 一鍵自動翻譯上下文字
-          </button>
-        </section>
+          <div class="panel-section">
+            <div class="section-label">下方文字</div>
+            <div class="control-group">
+              <label for="text-caption-bottom">說明文字</label>
+              <textarea id="text-caption-bottom" placeholder="例如：一秒生成專屬分析報告"></textarea>
+            </div>
+            <div class="control-row">
+              <div class="control-group half">
+                <label for="select-font-bottom">字型 <span class="font-note">中日韓自動 Noto</span></label>
+                <select id="select-font-bottom">
+                  <option value="Noto Sans TC">Noto Sans 繁中</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Outfit" selected>Outfit</option>
+                </select>
+              </div>
+              <div class="control-group half">
+                <label for="color-text-bottom">文字顏色</label>
+                <input type="color" id="color-text-bottom" value="#a5b4fc" class="color-full">
+              </div>
+            </div>
+            <div class="control-row">
+              <div class="control-group third">
+                <label for="input-font-size-bottom">字級 px</label>
+                <input type="number" id="input-font-size-bottom" value="45" min="20" max="150">
+              </div>
+              <div class="control-group third">
+                <label for="input-line-height-bottom">行高</label>
+                <input type="number" id="input-line-height-bottom" value="1.3" step="0.1" min="0.8" max="2.0">
+              </div>
+              <div class="control-group third">
+                <label for="input-margin-bottom">邊距</label>
+                <input type="number" id="input-margin-bottom" value="80" min="10" max="250">
+              </div>
+            </div>
+            <label class="checkbox-label" style="margin-top:0;">
+              <input type="checkbox" id="toggle-shadow-bottom" checked>文字陰影
+            </label>
+          </div>
+
+          <div class="panel-section">
+            <button id="btn-translate" class="btn btn-secondary btn-full">
+              <i data-lucide="languages"></i> 一鍵自動翻譯上下文字
+            </button>
+          </div>
+
+        </div><!-- end tab-text -->
+
+        <!-- ── Tab 4: 翻譯 ───────────────────────────────────── -->
+        <div class="tab-content" id="tab-translate">
+
+          <div class="panel-section">
+            <div class="section-label">多語系對照</div>
+            <p style="font-size:0.78rem;color:#9ca3af;margin-bottom:16px;line-height:1.5;">翻譯後可直接修改各語系文字，畫布即時更新。</p>
+
+            <div class="trans-group" data-lang="zh">
+              <div class="trans-lang-label">
+                <span class="flag">🇹🇼</span> 繁體中文（輸入源）
+              </div>
+              <textarea id="trans-zh-top" class="trans-input" readonly placeholder="上方文字">簡約明瞭的財務圖表</textarea>
+              <textarea id="trans-zh-bottom" class="trans-input mt-2" readonly placeholder="下方文字"></textarea>
+            </div>
+
+            <div class="trans-group" data-lang="en">
+              <div class="trans-lang-label">
+                <span class="flag">🇺🇸</span> English
+                <span class="loader" id="loader-en" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
+              </div>
+              <textarea id="trans-en-top" class="trans-input" placeholder="上方文字">Simple and Clear Financial Charts</textarea>
+              <textarea id="trans-en-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
+            </div>
+
+            <div class="trans-group" data-lang="ja">
+              <div class="trans-lang-label">
+                <span class="flag">🇯🇵</span> 日本語
+                <span class="loader" id="loader-ja" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
+              </div>
+              <textarea id="trans-ja-top" class="trans-input" placeholder="上方文字">シンプルで明快な財務グラフ</textarea>
+              <textarea id="trans-ja-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
+            </div>
+
+            <div class="trans-group" data-lang="ko">
+              <div class="trans-lang-label">
+                <span class="flag">🇰🇷</span> 한국어
+                <span class="loader" id="loader-ko" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
+              </div>
+              <textarea id="trans-ko-top" class="trans-input" placeholder="上方文字">심플하고 명확한 재무 차트</textarea>
+              <textarea id="trans-ko-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
+            </div>
+
+          </div>
+        </div><!-- end tab-translate -->
+
       </aside>
 
       <!-- Center Work Area / Preview Grid -->
@@ -476,47 +532,8 @@
         </div>
       </main>
 
-      <!-- Right Translation Panel -->
-      <aside class="translation-panel scrollable">
-        <h2 class="panel-title"><i data-lucide="languages"></i> 多國語系對照編輯器</h2>
-        <p class="panel-subtitle">系統翻譯後，你可以在下方直接修改各語系的文字內容，畫布預覽會即時更新。</p>
-
-        <div class="trans-group" data-lang="zh">
-          <div class="trans-lang-label">
-            <span class="flag">🇹🇼</span> 繁體中文 (輸入源)
-          </div>
-          <textarea id="trans-zh-top" class="trans-input" readonly placeholder="上方文字">簡約明瞭的財務圖表</textarea>
-          <textarea id="trans-zh-bottom" class="trans-input mt-2" readonly placeholder="下方文字"></textarea>
-        </div>
-
-        <div class="trans-group" data-lang="en">
-          <div class="trans-lang-label">
-            <span class="flag">🇺🇸</span> English (英文)
-            <span class="loader" id="loader-en" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
-          </div>
-          <textarea id="trans-en-top" class="trans-input" placeholder="上方文字">Simple and Clear Financial Charts</textarea>
-          <textarea id="trans-en-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
-        </div>
-
-        <div class="trans-group" data-lang="ja">
-          <div class="trans-lang-label">
-            <span class="flag">🇯🇵</span> 日本語 (日文)
-            <span class="loader" id="loader-ja" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
-          </div>
-          <textarea id="trans-ja-top" class="trans-input" placeholder="上方文字">シンプルで明快な財務グラフ</textarea>
-          <textarea id="trans-ja-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
-        </div>
-
-        <div class="trans-group" data-lang="ko">
-          <div class="trans-lang-label">
-            <span class="flag">🇰🇷</span> 한국어 (韓文)
-            <span class="loader" id="loader-ko" style="display:none;"><i class="spinner"></i> 翻譯中...</span>
-          </div>
-          <textarea id="trans-ko-top" class="trans-input" placeholder="上方文字">심플하고 명확한 재무 차트</textarea>
-          <textarea id="trans-ko-bottom" class="trans-input mt-2" placeholder="下方文字"></textarea>
-        </div>
-      </aside>
     </div>
+
   </div>
 
   <!-- Notification Toast -->
@@ -525,6 +542,6 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
