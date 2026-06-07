@@ -30,7 +30,7 @@
         <button id="btn-export-all" class="btn btn-primary">
           <i data-lucide="download-cloud"></i> 一鍵導出所有規格 & 語言 (ZIP)
         </button>
-        <button id="btn-reset" class="btn btn-ghost" title="重設所有設定">
+        <button id="btn-reset" class="btn btn-ghost" title="清空內容（API Key 保留）">
           <i data-lucide="rotate-ccw"></i>
         </button>
       </div>
@@ -39,6 +39,19 @@
     <div class="main-layout">
       <!-- Left Control Panel -->
       <aside class="control-panel scrollable">
+        <section class="section">
+          <h2 class="section-title"><i data-lucide="smartphone"></i> 0. 你的 App 是？</h2>
+          <div class="toggle-buttons" id="app-ori-picker">
+            <button class="toggle-btn" data-app-ori="portrait">
+              <i data-lucide="smartphone"></i> 直式 App
+            </button>
+            <button class="toggle-btn" data-app-ori="landscape">
+              <i data-lucide="smartphone" style="transform:rotate(90deg);"></i> 橫式 App
+            </button>
+          </div>
+          <p id="ori-hint" class="mode-hint" style="margin-top:8px; display:none;"></p>
+        </section>
+
         <section class="section">
           <h2 class="section-title"><i data-lucide="layers"></i> 圖片來源 (Image Source)</h2>
           <div class="radio-tabs">
@@ -91,22 +104,26 @@
           <h2 class="section-title"><i data-lucide="sparkles"></i> 1. AI 智慧生成設定</h2>
           
           <div class="control-group">
-            <label>從 README.md 自動分析（選用）</label>
-            <div class="md-upload-row">
-              <input type="file" id="md-file-input" accept=".md,.txt" style="display:none;">
-              <button id="btn-pick-md" class="btn btn-secondary btn-sm" type="button">
-                <i data-lucide="file-text"></i> 選取 .md 檔案
-              </button>
-              <span id="md-file-name" class="md-file-name">尚未選取</span>
-            </div>
-            <button id="btn-analyze-md" class="btn btn-accent btn-full" type="button" style="display:none; margin-top:8px;">
-              <i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt
-            </button>
+            <label for="ai-prompt">AI 圖片 Prompt 描述 (支援中文)</label>
+            <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
           </div>
 
           <div class="control-group">
-            <label for="ai-prompt">AI 圖片 Prompt 描述 (支援中文)</label>
-            <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
+            <label>App Icon 配色（選用）</label>
+            <input type="file" id="icon-file-input" accept="image/*" style="display:none;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <button id="btn-pick-icon" class="btn btn-secondary" type="button" style="padding:8px 12px; font-size:0.82rem;">
+                <i data-lucide="image-plus" style="width:14px;height:14px;"></i> 上傳 Icon
+              </button>
+              <div id="icon-preview-area" style="display:none; align-items:center; gap:6px;">
+                <img id="icon-preview" src="" alt="icon" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
+                <div id="icon-color-swatches" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+                <button id="btn-remove-icon" type="button" title="移除 Icon" style="background:rgba(239,68,68,0.85);color:#fff;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;">
+                  <i data-lucide="x" style="width:12px;height:12px;"></i>
+                </button>
+              </div>
+            </div>
+            <p id="icon-colors-text" class="mode-hint" style="margin-top:4px; display:none;"></p>
           </div>
 
           <div class="control-row">
@@ -141,6 +158,15 @@
           <div class="control-group" id="hybrid-feature-group" style="display:none;">
             <label for="hybrid-feature-prompt">Feature Graphic 專屬 Prompt（選用）</label>
             <textarea id="hybrid-feature-prompt" rows="2" placeholder="留空則自動在平板 Prompt 加上橫幅描述。例如：sweeping landscape banner with app logo and tagline..."></textarea>
+          </div>
+
+          <div class="control-group">
+            <label for="input-openai-key">OpenAI API Key</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="password" id="input-openai-key" placeholder="sk-..." autocomplete="off" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:0.85rem;">
+              <button id="btn-toggle-key" class="btn btn-secondary" type="button" style="padding:8px; width:36px; height:36px; flex-shrink:0;" title="顯示/隱藏 Key"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>
+            </div>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">僅存於本機 localStorage，不會外傳</p>
           </div>
 
           <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top: 12px;" type="button">

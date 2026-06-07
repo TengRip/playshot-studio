@@ -44,7 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     aiSeed: 42,
     aiCohesiveSeed: true,
     aiImages: { phone: null, tablet7: null, tablet10: null, feature: null },
-    aiDataUrls: { phone: null, tablet7: null, tablet10: null, feature: null }
+    aiDataUrls: { phone: null, tablet7: null, tablet10: null, feature: null },
+    iconDataUrl: null,
+    iconColors: []
   };
 
   const textRanges = {
@@ -157,10 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
     hybridModeHint:      document.getElementById('hybrid-mode-hint'),
     hybridFeatureGroup:  document.getElementById('hybrid-feature-group'),
     hybridFeaturePrompt: document.getElementById('hybrid-feature-prompt'),
-    mdFileInput:         document.getElementById('md-file-input'),
-    btnPickMd:           document.getElementById('btn-pick-md'),
-    mdFileName:          document.getElementById('md-file-name'),
-    btnAnalyzeMd:        document.getElementById('btn-analyze-md')
+    inputOpenaiKey:      document.getElementById('input-openai-key'),
+    btnToggleKey:        document.getElementById('btn-toggle-key'),
+    appOriPicker:        document.querySelectorAll('[data-app-ori]'),
+    oriHint:             document.getElementById('ori-hint'),
+    iconFileInput:       document.getElementById('icon-file-input'),
+    btnPickIcon:         document.getElementById('btn-pick-icon'),
+    iconPreviewArea:     document.getElementById('icon-preview-area'),
+    iconPreview:         document.getElementById('icon-preview'),
+    iconColorSwatches:   document.getElementById('icon-color-swatches'),
+    btnRemoveIcon:       document.getElementById('btn-remove-icon'),
+    iconColorsText:      document.getElementById('icon-colors-text')
   };
 
   init();
@@ -172,6 +181,59 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDraggableText();
     triggerAllRenders();
     adjustZoom();
+    if (el.inputOpenaiKey) el.inputOpenaiKey.value = loadApiKey();
+  }
+
+  function loadApiKey() {
+    return localStorage.getItem('playshot_openai_key') || '';
+  }
+  function saveApiKey(key) {
+    if (key) localStorage.setItem('playshot_openai_key', key);
+    else localStorage.removeItem('playshot_openai_key');
+  }
+  function getDalleSize(device) {
+    if (device === 'feature') return '1792x1024';
+    return state.orientation === 'portrait' ? '1024x1792' : '1792x1024';
+  }
+
+  function extractDominantColors(imgEl, count) {
+    count = count || 5;
+    var c = document.createElement('canvas');
+    c.width = c.height = 64;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(imgEl, 0, 0, 64, 64);
+    var data = ctx.getImageData(0, 0, 64, 64).data;
+    var map = {};
+    for (var i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 100) continue;
+      var r = Math.round(data[i] / 20) * 20;
+      var g = Math.round(data[i + 1] / 20) * 20;
+      var b = Math.round(data[i + 2] / 20) * 20;
+      var key = r + ',' + g + ',' + b;
+      map[key] = (map[key] || 0) + 1;
+    }
+    return Object.entries(map)
+      .sort(function(a, b) { return b[1] - a[1]; })
+      .slice(0, count)
+      .map(function(entry) {
+        var parts = entry[0].split(',').map(Number);
+        return '#' + parts.map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+      });
+  }
+
+  function renderIconSwatches(colors) {
+    if (!el.iconColorSwatches) return;
+    el.iconColorSwatches.innerHTML = '';
+    colors.forEach(function(hex) {
+      var swatch = document.createElement('div');
+      swatch.style.cssText = 'width:18px;height:18px;border-radius:4px;background:' + hex + ';border:1px solid rgba(255,255,255,0.15);flex-shrink:0;';
+      swatch.title = hex;
+      el.iconColorSwatches.appendChild(swatch);
+    });
+    if (el.iconColorsText) {
+      el.iconColorsText.textContent = '提取配色：' + colors.join('  ');
+      el.iconColorsText.style.display = 'block';
+    }
   }
 
   // ── localStorage ──────────────────────────────────────────────
@@ -202,7 +264,9 @@ document.addEventListener('DOMContentLoaded', () => {
           aiStyle: state.aiStyle,
           aiSeed: state.aiSeed,
           aiCohesiveSeed: state.aiCohesiveSeed,
-          aiDataUrls: state.aiDataUrls
+          aiDataUrls: state.aiDataUrls,
+          iconDataUrl: state.iconDataUrl,
+          iconColors: state.iconColors
         }));
       } catch (e) { /* 儲存空間不足時靜默忽略 */ }
     }, 500);
@@ -220,7 +284,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'captionZH_bottom','fontFamily_bottom','fontSize_bottom','lineHeight_bottom','textColor_bottom',
         'textMargin_bottom','showTextShadow_bottom','translations_bottom',
         'currentLangPreview','zoom','layoutMode','bgPattern','bgOverlayOpacity',
-        'imageSource','aiPrompt','aiPromptFeature','aiStyle','aiSeed','aiCohesiveSeed'
+        'imageSource','aiPrompt','aiPromptFeature','aiStyle','aiSeed','aiCohesiveSeed',
+        'iconDataUrl','iconColors'
       ];
       keys.forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
 
@@ -267,6 +332,18 @@ document.addEventListener('DOMContentLoaded', () => {
           };
           img.src = dataUrl;
         });
+      }
+      // 非同步還原 Icon 預覽
+      if (saved.iconDataUrl) {
+        state.iconDataUrl = saved.iconDataUrl;
+        state.iconColors = saved.iconColors || [];
+        var iconImg = new Image();
+        iconImg.onload = function() {
+          if (el.iconPreview) el.iconPreview.src = saved.iconDataUrl;
+          if (el.iconPreviewArea) el.iconPreviewArea.style.display = 'flex';
+          renderIconSwatches(state.iconColors);
+        };
+        iconImg.src = saved.iconDataUrl;
       }
     } catch (e) { /* 損毀的儲存資料，忽略 */ }
   }
@@ -350,21 +427,54 @@ document.addEventListener('DOMContentLoaded', () => {
         el.hybridFeaturePrompt.addEventListener('input', e => { state.aiPromptFeature = e.target.value; saveState(); });
       }
 
-      // README 上傳與分析
-      el.btnPickMd.addEventListener('click', () => el.mdFileInput.click());
-      el.mdFileInput.addEventListener('change', (e) => {
+      if (el.inputOpenaiKey) {
+        el.inputOpenaiKey.addEventListener('change', e => saveApiKey(e.target.value.trim()));
+        el.btnToggleKey.addEventListener('click', () => {
+          const isPass = el.inputOpenaiKey.type === 'password';
+          el.inputOpenaiKey.type = isPass ? 'text' : 'password';
+          el.btnToggleKey.querySelector('[data-lucide]').setAttribute('data-lucide', isPass ? 'eye-off' : 'eye');
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+      }
+
+      // Icon 上傳配色分析
+      el.btnPickIcon?.addEventListener('click', () => el.iconFileInput?.click());
+      el.btnRemoveIcon?.addEventListener('click', () => {
+        state.iconDataUrl = null;
+        state.iconColors = [];
+        if (el.iconPreview) el.iconPreview.src = '';
+        if (el.iconPreviewArea) el.iconPreviewArea.style.display = 'none';
+        if (el.iconColorsText) el.iconColorsText.style.display = 'none';
+        if (el.iconColorSwatches) el.iconColorSwatches.innerHTML = '';
+        saveState();
+        showToast('已移除 Icon 配色', 'info');
+      });
+      el.iconFileInput?.addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
-        el.mdFileName.textContent = file.name;
-        el.mdFileName.title = file.name;
-        el.btnAnalyzeMd.style.display = 'block';
-        el.btnAnalyzeMd.dataset.file = '';
-        // 讀取內容暫存於 dataset
         const reader = new FileReader();
-        reader.onload = (ev) => { el.btnAnalyzeMd.dataset.content = ev.target.result; };
-        reader.readAsText(file, 'UTF-8');
+        reader.onload = ev => {
+          const img = new Image();
+          img.onload = () => {
+            const thumb = document.createElement('canvas');
+            const maxSize = 128;
+            const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+            thumb.width = Math.round(img.width * scale);
+            thumb.height = Math.round(img.height * scale);
+            thumb.getContext('2d').drawImage(img, 0, 0, thumb.width, thumb.height);
+            state.iconDataUrl = thumb.toDataURL('image/png');
+            state.iconColors = extractDominantColors(img);
+            if (el.iconPreview) el.iconPreview.src = state.iconDataUrl;
+            if (el.iconPreviewArea) el.iconPreviewArea.style.display = 'flex';
+            renderIconSwatches(state.iconColors);
+            saveState();
+            showToast('已提取 ' + state.iconColors.length + ' 個主要配色', 'success');
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
       });
-      el.btnAnalyzeMd.addEventListener('click', analyzeMarkdownAndGeneratePrompt);
     }
 
     // 上傳區點擊 / 拖曳
@@ -412,6 +522,24 @@ document.addEventListener('DOMContentLoaded', () => {
       el.canvasGrid.classList.toggle('landscape', state.orientation === 'landscape');
       updateResolutionLabels();
       triggerAllRenders(); saveState();
+    }));
+
+    // App 方向選擇（Step 0）
+    el.appOriPicker.forEach(btn => btn.addEventListener('click', () => {
+      el.appOriPicker.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const ori = btn.getAttribute('data-app-ori');
+      state.orientation = ori;
+      el.orientationBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-orientation') === ori));
+      el.canvasGrid.classList.toggle('landscape', ori === 'landscape');
+      updateResolutionLabels();
+      triggerAllRenders();
+      saveState();
+      const hints = {
+        portrait: '手機和平板截圖用直式，Feature Graphic 固定橫式。',
+        landscape: '所有截圖均為橫式（適合遊戲或橫向 App）。'
+      };
+      if (el.oriHint) { el.oriHint.textContent = hints[ori]; el.oriHint.style.display = 'block'; }
     }));
 
     el.selectFitMode.addEventListener('change', e => { state.fitMode = e.target.value; triggerAllRenders(); saveState(); });
@@ -537,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (el.btnReset) {
       el.btnReset.addEventListener('click', () => {
-        if (!confirm('確定要重設所有設定嗎？截圖、文字、背景都會清除，此操作無法復原。')) return;
+        if (!confirm('確定要清空所有內容嗎？截圖、文字、背景都會清除，API Key 會保留。')) return;
         localStorage.removeItem('playshot_v2');
         location.reload();
       });
@@ -1111,6 +1239,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     el.orientationBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-orientation')===state.orientation));
     el.canvasGrid.classList.toggle('landscape', state.orientation==='landscape');
+    el.appOriPicker.forEach(b => b.classList.toggle('active', b.getAttribute('data-app-ori')===state.orientation));
+    if (el.oriHint && state.orientation) {
+      const hints = { portrait: '手機和平板截圖用直式，Feature Graphic 固定橫式。', landscape: '所有截圖均為橫式（適合遊戲或橫向 App）。' };
+      el.oriHint.textContent = hints[state.orientation];
+      el.oriHint.style.display = 'block';
+    }
     el.langTabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-lang')===state.currentLangPreview));
 
     if (el.rangeBgOverlay) {
@@ -1261,117 +1395,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── README 本機智慧解析（不依賴外部 API，永遠可用）──────────────
-  function extractPromptFromMarkdown(content) {
-    const lines = content.split('\n');
 
-    // 取 App 名稱（第一個 H1/H2）
-    let appName = '';
-    for (const line of lines) {
-      const m = line.match(/^#{1,2}\s+(.+)/);
-      if (m) { appName = m[1].replace(/[*`[\]]/g, '').trim(); break; }
-    }
-
-    // 取第一段有意義的描述文字
-    let description = '';
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t || t.startsWith('#') || t.startsWith('```') ||
-          t.startsWith('|')  || t.startsWith('!') || t.startsWith('<')) continue;
-      if (t.length > 30) { description = t.replace(/[*`[\]]/g, '').slice(0, 120); break; }
-    }
-
-    // 取前 4 條 bullet point 特色
-    const features = [];
-    for (const line of lines) {
-      const m = line.match(/^[-*•+]\s+(.+)/);
-      if (m && features.length < 4) {
-        const feat = m[1].replace(/\*\*/g, '').replace(/`/g, '').trim();
-        if (feat.length > 5) features.push(feat);
-      }
-    }
-
-    const parts = [];
-    if (appName)          parts.push(`${appName} mobile app`);
-    if (description)      parts.push(description);
-    if (features.length)  parts.push(`featuring ${features.slice(0, 3).join(', ')}`);
-    parts.push('modern clean UI, vibrant colors, Google Play Store screenshot artwork');
-
-    return parts.join(', ').slice(0, 220);
-  }
-
-  async function analyzeMarkdownAndGeneratePrompt() {
-    const content = el.btnAnalyzeMd.dataset.content || '';
-    if (!content.trim()) { showToast('檔案內容為空，請重新選取', 'error'); return; }
-
-    el.btnAnalyzeMd.disabled = true;
-    el.btnAnalyzeMd.innerHTML = '<i class="spinner"></i> 分析中...';
-
-    const systemPrompt = `You are an expert app marketer. Given an app README, write a concise vivid English image generation prompt (max 60 words) for Google Play Store artwork. Output ONLY the prompt, no explanation, no quotes.`;
-    const excerpt = content.trim().slice(0, 2500);
-
-    // Pollinations POST，遇到 429 自動重試（最多 2 次）
-    async function tryPollinationsWithRetry() {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (attempt > 0) {
-          el.btnAnalyzeMd.innerHTML = `<i class="spinner"></i> 重試中 (${attempt}/2)...`;
-          await new Promise(r => setTimeout(r, attempt * 3000));
-        }
-        const res = await fetch('https://text.pollinations.ai/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user',   content: `README:\n\n${excerpt}\n\nGenerate a Google Play Store image prompt.` }
-            ],
-            model: 'openai', seed: 42, private: true
-          })
-        });
-        if (res.status === 429 && attempt < 2) continue; // rate limit，繼續重試
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw = await res.text();
-        try {
-          const json = JSON.parse(raw);
-          if (json.choices?.[0]?.message?.content) return json.choices[0].message.content.trim();
-        } catch (_) { /* plain text */ }
-        return raw.trim();
-      }
-      throw new Error('Rate limited after retries');
-    }
-
-    let generatedPrompt = '';
-    let usedFallback = false;
-
-    try {
-      generatedPrompt = await tryPollinationsWithRetry();
-    } catch (err) {
-      console.warn('Pollinations API failed, using local extraction:', err);
-      generatedPrompt = extractPromptFromMarkdown(content);
-      usedFallback = true;
-    }
-
-    if (!generatedPrompt.trim()) {
-      generatedPrompt = extractPromptFromMarkdown(content);
-      usedFallback = true;
-    }
-
-    el.aiPrompt.value = generatedPrompt;
-    state.aiPrompt = generatedPrompt;
-    saveState();
-
-    if (usedFallback) {
-      showToast('📄 已從 README 關鍵字提取 Prompt（建議手動潤色）', 'success');
-    } else {
-      showToast('✨ AI Prompt 生成完成，可自行微調後生圖', 'success');
-    }
-
-    el.btnAnalyzeMd.disabled = false;
-    el.btnAnalyzeMd.innerHTML = '<i data-lucide="wand-2"></i> 分析 README，自動生成 Prompt';
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  }
 
   async function generateAIImages() {
+    const apiKey = loadApiKey();
+    if (!apiKey) {
+      showToast('請先輸入 OpenAI API Key', 'error');
+      el.inputOpenaiKey?.focus();
+      return;
+    }
+
     state.aiPrompt = el.aiPrompt.value.trim();
     if (!state.aiPrompt) {
       showToast('請先輸入 AI 圖片 Prompt 描述', 'error');
@@ -1381,11 +1414,8 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnGenerateAi.disabled = true;
     el.btnGenerateAi.innerHTML = '<i class="spinner"></i> AI 正在生成中...';
 
-    const seed = parseInt(el.aiSeed.value) || Math.floor(Math.random() * 1000000);
-    state.aiSeed = seed;
-
     let finalPrompt = state.aiPrompt;
-    const hasChinese = /[\u4e00-\u9fa5]/.test(state.aiPrompt);
+    const hasChinese = /[一-龥]/.test(state.aiPrompt);
     if (hasChinese) {
       try {
         el.btnGenerateAi.innerHTML = '<i class="spinner"></i> 正在翻譯 Prompt...';
@@ -1399,14 +1429,17 @@ document.addEventListener('DOMContentLoaded', () => {
       finalPrompt += ', ' + el.selectAiStyle.value;
     }
 
-    // 混合模式只生 tablet7 + feature；全 AI 模式生全部 4 張
+    // 加入 Icon 配色到 prompt
+    if (state.iconColors && state.iconColors.length > 0) {
+      finalPrompt += ', harmonious color palette inspired by app icon: ' + state.iconColors.join(', ');
+    }
+
     const devices = state.imageSource === 'hybrid'
       ? ['tablet7', 'feature']
       : ['phone', 'tablet7', 'tablet10', 'feature'];
     let successCount = 0;
     const failed = [];
 
-    // Feature Graphic 使用獨立 prompt（若有設定）或自動加橫幅描述
     const getDevicePrompt = (device) => {
       if (device === 'feature') {
         const override = state.aiPromptFeature.trim();
@@ -1415,83 +1448,89 @@ document.addEventListener('DOMContentLoaded', () => {
       return finalPrompt;
     };
 
-    // 逐一依序生成，避免同時發請求被限流
     for (let i = 0; i < devices.length; i++) {
       const device = devices[i];
       el.btnGenerateAi.innerHTML = `<i class="spinner"></i> 生成中 ${i + 1} / ${devices.length}（${device}）...`;
       showCanvasLoading(device, true);
 
-      let w, h;
-      if (device === 'feature') {
-        w = 1024; h = 500;
-      } else {
-        w = DEVICE_SPECS[device][state.orientation].width;
-        h = DEVICE_SPECS[device][state.orientation].height;
-      }
-      const deviceSeed = state.aiCohesiveSeed ? seed : (seed + i * 100);
       const devicePrompt = getDevicePrompt(device);
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(devicePrompt)}?width=${w}&height=${h}&seed=${deviceSeed}&nologo=true&private=true`;
+      const size = getDalleSize(device);
 
-      // 每張最多重試 2 次
       let loaded = false;
       for (let attempt = 0; attempt < 2 && !loaded; attempt++) {
         if (attempt > 0) {
           el.btnGenerateAi.innerHTML = `<i class="spinner"></i> 重試 ${device}（${attempt}/1）...`;
-          await new Promise(r => setTimeout(r, 4000));
+          await new Promise(r => setTimeout(r, 2000));
         }
         try {
-          await new Promise((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            const timer = setTimeout(() => reject(new Error('timeout')), 60000);
-            img.onload = () => {
-              clearTimeout(timer);
-              try {
-                const tmp = document.createElement('canvas');
-                tmp.width = w; tmp.height = h;
-                tmp.getContext('2d').drawImage(img, 0, 0);
-                state.aiDataUrls[device] = tmp.toDataURL('image/png');
-              } catch (_) {}
-              state.aiImages[device] = img;
-              resolve();
-            };
-            img.onerror = () => { clearTimeout(timer); reject(new Error('load error')); };
-            img.src = url;
+          const res = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: 'dall-e-3',
+              prompt: devicePrompt,
+              n: 1,
+              size: size,
+              quality: 'standard',
+              response_format: 'b64_json'
+            })
           });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const msg = errData.error?.message || `HTTP ${res.status}`;
+            if (res.status === 401) {
+              showToast('API Key 錯誤，請確認後重試', 'error');
+              throw new Error('auth');
+            }
+            throw new Error(msg);
+          }
+
+          const data = await res.json();
+          const dataUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+          state.aiDataUrls[device] = dataUrl;
+
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+          state.aiImages[device] = img;
           loaded = true;
           successCount++;
         } catch (err) {
           console.warn(`Device ${device} attempt ${attempt + 1} failed:`, err);
+          if (err.message === 'auth') break;
         }
       }
 
       showCanvasLoading(device, false);
       if (!loaded) failed.push(device);
-
-      // 每張完成後即時更新畫面
       triggerAllRenders();
     }
 
-    try {
-      // 混合模式：7 吋與 10 吋長寬比相同，直接共用同一張圖
-      if (state.imageSource === 'hybrid' && state.aiImages['tablet7']) {
-        state.aiImages['tablet10']   = state.aiImages['tablet7'];
-        state.aiDataUrls['tablet10'] = state.aiDataUrls['tablet7'];
-        triggerAllRenders();
-      }
-
-      saveState();
-      if (failed.length === 0) {
-        showToast('🎉 生成成功！', 'success');
-      } else if (successCount > 0) {
-        showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗，可重新點擊生成`, 'success');
-      } else {
-        showToast('生成失敗，請稍候再試', 'error');
-      }
-    } finally {
-      el.btnGenerateAi.disabled = false;
-      el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
-      if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (state.imageSource === 'hybrid' && state.aiImages['tablet7']) {
+      state.aiImages['tablet10']   = state.aiImages['tablet7'];
+      state.aiDataUrls['tablet10'] = state.aiDataUrls['tablet7'];
+      triggerAllRenders();
     }
+
+    saveState();
+
+    if (failed.length === 0) {
+      showToast('🎉 生成成功！', 'success');
+    } else if (successCount > 0) {
+      showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗，可重新點擊生成`, 'success');
+    } else {
+      showToast('生成失敗，請確認 API Key 是否正確', 'error');
+    }
+
+    el.btnGenerateAi.disabled = false;
+    el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 });
