@@ -130,7 +130,10 @@
             <div class="section-label">AI 生成設定</div>
 
             <div class="control-group">
-              <label for="ai-prompt">Prompt 描述（支援中文）</label>
+              <label for="ai-prompt" style="display:flex;justify-content:space-between;align-items:center;">
+                Prompt 描述（支援中文）
+                <button id="btn-clear-prompt" type="button" style="font-size:0.7rem;color:#9ca3af;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;">清空</button>
+              </label>
               <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
             </div>
 

@@ -434,6 +434,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`已產生隨機 Seed: ${seed}`, 'success');
       });
       el.btnGenerateAi.addEventListener('click', generateAIImages);
+      document.getElementById('btn-clear-prompt')?.addEventListener('click', () => {
+        el.aiPrompt.value = '';
+        state.aiPrompt = '';
+        saveState();
+        el.aiPrompt.focus();
+      });
       if (el.hybridFeaturePrompt) {
         el.hybridFeaturePrompt.addEventListener('input', e => { state.aiPromptFeature = e.target.value; saveState(); });
       }
