@@ -142,3 +142,5 @@ playshot-studio/
 | v1.0 | 2026-05 | 初版：手機 + 平板三規格、漸層背景、雙行文字、多語系翻譯、ZIP 批次匯出 |
 | v1.1 | 2026-05 | 新增 4 種背景類型（Mesh / Grid / Stripes / Waves）+ 背景圖上傳 + 橫式支援 |
 | v1.2 | 2026-06-01 | 新增 5 種背景裝飾（Dots / Rings / Network / Spotlight / Glow）；佈署至 Vercel |
+| v2.0 | 2026-06-07 | 介面大改版：Tab 分頁側欄、亮色主題、翻譯功能移入 Tab、AI Prompt 清空鍵 |
+| v2.1 | 2026-06-12 | **Bug fix**：修復「🌐 全語言」預覽模式未顯示四種語言的問題（`app.js` `renderAllLangText` / `calcAllLangTextHeight` 加入 ZH fallback，確保未翻譯語系也能佔位顯示） |

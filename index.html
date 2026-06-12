@@ -12,6 +12,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- JSZip for batch download -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- PDF.js for client-side PDF parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="styles.css?v=6">
 </head>
@@ -132,9 +134,35 @@
             <div class="control-group">
               <label for="ai-prompt" style="display:flex;justify-content:space-between;align-items:center;">
                 Prompt 描述（支援中文）
-                <button id="btn-clear-prompt" type="button" style="font-size:0.7rem;color:#9ca3af;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;">清空</button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <button id="btn-prompt-helper" type="button" style="font-size:0.72rem;color:#818cf8;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;display:flex;align-items:center;gap:2px;font-weight:600;"><i data-lucide="sparkles" style="width:12px;height:12px;"></i>AI 助手</button>
+                  <button id="btn-clear-prompt" type="button" style="font-size:0.7rem;color:#9ca3af;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;">清空</button>
+                </div>
               </label>
               <textarea id="ai-prompt" placeholder="例如：繽紛的個人記帳 App，現代簡約風格的儀表板與圓餅圖插畫..."></textarea>
+
+              <!-- AI Prompt Helper Panel -->
+              <div id="prompt-helper-panel" class="prompt-helper-panel" style="display: none;">
+                <div class="helper-import-row">
+                  <span class="helper-section-title">✨ AI 智能 Prompt 助手</span>
+                  <button id="btn-import-doc" class="btn btn-secondary btn-sm" type="button" style="padding:4px 8px; font-size:0.7rem; display:flex; align-items:center; gap:3px;">
+                    <i data-lucide="file-text" style="width:12px;height:12px;"></i> 匯入文件
+                  </button>
+                  <input type="file" id="helper-file-input" accept=".md,.pdf,.txt" style="display:none;">
+                </div>
+                <div id="helper-file-status" class="helper-file-status" style="display:none;">
+                  <span class="file-name" id="helper-file-name">filename.pdf</span>
+                  <button id="btn-remove-doc" type="button" title="移除文件"><i data-lucide="x" style="width:12px;height:12px;"></i></button>
+                </div>
+                <textarea id="helper-input-text" rows="3" class="helper-textarea" placeholder="在此貼上 App 功能介紹、商店簡介或文章內容..."></textarea>
+                <button id="btn-run-prompt-helper" class="btn btn-secondary btn-sm btn-full" style="font-size:0.75rem; padding:6px 12px; display:flex; align-items:center; justify-content:center; gap:4px;" type="button">
+                  <i data-lucide="cpu" style="width:13px;height:13px;"></i> 分析並生成 Prompt
+                </button>
+                <div id="helper-suggestions" style="margin-top: 12px; display: none; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+                  <span style="font-size: 0.72rem; color: #9ca3af; display: block; margin-bottom: 6px; font-weight: 500;">AI 推薦生圖 Prompt (點擊可直接套用)：</span>
+                  <div id="helper-suggestions-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+              </div>
             </div>
 
             <div class="control-group">
@@ -545,6 +573,6 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

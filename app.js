@@ -169,12 +169,26 @@ document.addEventListener('DOMContentLoaded', () => {
     iconPreview:         document.getElementById('icon-preview'),
     iconColorSwatches:   document.getElementById('icon-color-swatches'),
     btnRemoveIcon:       document.getElementById('btn-remove-icon'),
-    iconColorsText:      document.getElementById('icon-colors-text')
+    iconColorsText:      document.getElementById('icon-colors-text'),
+    btnPromptHelper:      document.getElementById('btn-prompt-helper'),
+    promptHelperPanel:    document.getElementById('prompt-helper-panel'),
+    btnImportDoc:         document.getElementById('btn-import-doc'),
+    helperFileInput:      document.getElementById('helper-file-input'),
+    helperFileStatus:     document.getElementById('helper-file-status'),
+    helperFileName:       document.getElementById('helper-file-name'),
+    btnRemoveDoc:         document.getElementById('btn-remove-doc'),
+    helperInputText:      document.getElementById('helper-input-text'),
+    btnRunPromptHelper:   document.getElementById('btn-run-prompt-helper'),
+    helperSuggestions:    document.getElementById('helper-suggestions'),
+    helperSuggestionsList:document.getElementById('helper-suggestions-list')
   };
 
   init();
 
   function init() {
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    }
     loadState();
     setupEventListeners();
     updateUIState();
@@ -687,6 +701,33 @@ document.addEventListener('DOMContentLoaded', () => {
         location.reload();
       });
     }
+
+    // AI Prompt Helper Event Listeners
+    if (el.btnPromptHelper) {
+      el.btnPromptHelper.addEventListener('click', () => {
+        const isHidden = el.promptHelperPanel.style.display === 'none';
+        el.promptHelperPanel.style.display = isHidden ? 'flex' : 'none';
+        el.btnPromptHelper.classList.toggle('active', isHidden);
+      });
+
+      el.btnImportDoc.addEventListener('click', () => el.helperFileInput.click());
+
+      el.helperFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await handleImportedFile(file);
+        e.target.value = '';
+      });
+
+      el.btnRemoveDoc.addEventListener('click', () => {
+        el.helperFileStatus.style.display = 'none';
+        el.helperFileName.textContent = '';
+        el.helperInputText.value = '';
+        showToast('已移除匯入的文件內容', 'info');
+      });
+
+      el.btnRunPromptHelper.addEventListener('click', generatePromptsFromText);
+    }
   }
 
   // ── 截圖上傳 ────────────────────────────────────────────────────
@@ -831,9 +872,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sz = Math.round(fontSize * 0.68);
     const gap = Math.round(sz * 0.4);
     let total = 0;
+    const sourceMap = field === 'top' ? state.translations_top : state.translations_bottom;
+    const zhFallback = (sourceMap.zh || '').trim();
     ALL_LANGS.forEach(code => {
-      const text = (field === 'top' ? state.translations_top[code] : state.translations_bottom[code]) || '';
-      if (!text.trim()) return;
+      const text = (sourceMap[code] || zhFallback || '').trim();
+      if (!text) return;
       ctx.font = `bold ${sz}px '${resolveFont(code, fontFamily)}', sans-serif`;
       total += wrapText(ctx, LANG_FLAGS[code] + ' ' + text, maxW).length * sz * lineHeight + gap;
     });
@@ -844,9 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sz = Math.round(fontSize * 0.68);
     const gap = Math.round(sz * 0.4);
     let curY = startY;
+    const sourceMap = field === 'top' ? state.translations_top : state.translations_bottom;
+    const zhFallback = (sourceMap.zh || '').trim();
     ALL_LANGS.forEach(code => {
-      const text = (field === 'top' ? state.translations_top[code] : state.translations_bottom[code]) || '';
-      if (!text.trim()) return;
+      const text = (sourceMap[code] || zhFallback || '').trim();
+      if (!text) return;
       ctx.save();
       ctx.font = `bold ${sz}px '${resolveFont(code, fontFamily)}', sans-serif`;
       ctx.fillStyle = textColor; ctx.textAlign = align; ctx.textBaseline = 'top';
@@ -1549,5 +1594,190 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnGenerateAi.disabled = false;
     el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
     if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  async function handleImportedFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    el.helperFileName.textContent = `載入中: ${file.name}...`;
+    el.helperFileStatus.style.display = 'flex';
+    
+    try {
+      if (ext === 'txt' || ext === 'md') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          let text = e.target.result || '';
+          if (text.length > 15000) {
+            text = text.substring(0, 15000);
+            showToast('文件內容過長，已自動截取前 15,000 字元', 'info');
+          }
+          el.helperInputText.value = text;
+          el.helperFileName.textContent = `${file.name} (約 ${text.length} 字)`;
+          showToast(`成功讀取文件: ${file.name}`, 'success');
+        };
+        reader.onerror = () => {
+          throw new Error('檔案讀取失敗');
+        };
+        reader.readAsText(file);
+      } else if (ext === 'pdf') {
+        if (typeof pdfjsLib === 'undefined') {
+          throw new Error('PDF 解析庫未載入，請重新整理頁面');
+        }
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = '';
+        const maxPages = Math.min(pdf.numPages, 10);
+        
+        for (let i = 1; i <= maxPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(' ');
+          text += pageText + '\n';
+          if (text.length > 15000) break;
+        }
+        
+        if (text.length > 15000) {
+          text = text.substring(0, 15000);
+          showToast('PDF 內容過長，已自動截取前 15,000 字元', 'info');
+        }
+        
+        if (!text.trim()) {
+          throw new Error('PDF 未包含可解析的文字內容（可能是掃描檔）');
+        }
+        
+        el.helperInputText.value = text;
+        const pageInfo = pdf.numPages > 10 ? `前 10 頁，共 ${pdf.numPages} 頁` : `共 ${pdf.numPages} 頁`;
+        el.helperFileName.textContent = `${file.name} (${pageInfo}, 約 ${text.length} 字)`;
+        showToast(`成功解析 PDF: ${file.name}`, 'success');
+      } else {
+        throw new Error('不支援的檔案格式，請上傳 .md, .pdf 或 .txt 檔');
+      }
+    } catch (err) {
+      console.error(err);
+      el.helperFileStatus.style.display = 'none';
+      el.helperFileName.textContent = '';
+      showToast(err.message || '讀取文件時發生錯誤', 'error');
+    }
+  }
+
+  async function generatePromptsFromText() {
+    const apiKey = loadApiKey();
+    if (!apiKey) {
+      showToast('請先輸入 OpenAI API Key', 'error');
+      if (el.inputOpenaiKey) {
+        document.querySelector('[data-tab="image"]')?.click();
+        el.inputOpenaiKey.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.inputOpenaiKey.focus();
+      }
+      return;
+    }
+
+    const userText = el.helperInputText.value.trim();
+    if (!userText) {
+      showToast('請先輸入或匯入 App 介紹文字', 'error');
+      el.helperInputText.focus();
+      return;
+    }
+
+    el.btnRunPromptHelper.disabled = true;
+    el.btnRunPromptHelper.innerHTML = '<i class="spinner"></i> AI 正在分析中...';
+    el.helperSuggestions.style.display = 'none';
+    el.helperSuggestionsList.innerHTML = '';
+
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `你是一個專業的 App 商店展示圖生圖 Prompt 專家。
+請根據使用者提供的 App 介紹或文章內容，提取其核心功能與視覺主題，並生成 3 個最適合用於 AI 繪圖模型 (如 DALL-E 3) 生圖的英文 Prompt。這些圖片會被用作 Google Play 商店的展示宣傳圖 (Screenshots)。
+
+請遵循以下指導原則：
+1. 每組 Prompt 必須以英文書寫，且聚焦在「一個清晰的 App 主題畫面或介面插畫」，例如：手機上的圖表、簡約儀表板、手繪風格卡片等。
+2. 避免文字在圖中模糊出現，請著重在「畫面氛圍」、「配色」以及「UI/UX 插圖元件的視覺描述」。
+3. 每組 Prompt 可包含合適的藝術風格詞（例如：modern UI, vector illustration, clean 3D rendering, minimal design, flat design 等）。
+4. 請務必輸出合規的 JSON 物件，結構如下（不要包裝在 markdown 的 \`\`\`json 標記中，僅輸出 JSON 字串）：
+{
+  "prompts": [
+    "DALL-E 3 compatible prompt 1 (in English, focus on visual description, features, and style)",
+    "DALL-E 3 compatible prompt 2 (in English, focus on visual description, features, and style)",
+    "DALL-E 3 compatible prompt 3 (in English, focus on visual description, features, and style)"
+  ],
+  "explanations": [
+    "方案一：[繁體中文視覺設計概念，如：繽紛記帳介面與懸浮的 3D 錢包氣球，現代簡約風格]",
+    "方案二：[繁體中文視覺設計概念，如：極簡數據儀表板與圓餅圖，扁平向量插畫]",
+    "方案三：[繁體中文視覺設計概念，如：個人財務目標解鎖勳章，精緻的 3D 渲染風格]"
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: userText
+            }
+          ],
+          temperature: 0.7,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const parsed = JSON.parse(data.choices[0].message.content);
+
+      if (!parsed.prompts || !parsed.prompts.length) {
+        throw new Error('AI 回傳結果格式不符');
+      }
+
+      el.helperSuggestionsList.innerHTML = '';
+      
+      parsed.prompts.forEach((prompt, idx) => {
+        const explanation = parsed.explanations?.[idx] || `方案 ${idx + 1}`;
+        
+        const card = document.createElement('div');
+        card.className = 'helper-suggestion-item';
+        card.innerHTML = `
+          <div class="helper-suggestion-header">
+            <i data-lucide="sparkles" style="width:12px;height:12px;display:inline-block;vertical-align:middle;"></i>
+            <span>${explanation}</span>
+          </div>
+          <div class="helper-suggestion-desc">${prompt}</div>
+          <span style="font-size:0.65rem; color:#818cf8; text-align:right; font-weight:600; margin-top:2px;">點擊套用此 Prompt 👆</span>
+        `;
+
+        card.addEventListener('click', () => {
+          el.aiPrompt.value = prompt;
+          state.aiPrompt = prompt;
+          saveState();
+          el.aiPrompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.aiPrompt.focus();
+          showToast(`已成功套用方案 ${idx + 1} 的 Prompt！`, 'success');
+        });
+
+        el.helperSuggestionsList.appendChild(card);
+      });
+
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      el.helperSuggestions.style.display = 'block';
+      showToast('分析完成，已為您生成 3 組生圖方案！', 'success');
+
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || '生成失敗，請確認 API Key 是否有效。', 'error');
+    } finally {
+      el.btnRunPromptHelper.disabled = false;
+      el.btnRunPromptHelper.innerHTML = '<i data-lucide="cpu" style="width:13px;height:13px;"></i> 分析並生成 Prompt';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
   }
 });
