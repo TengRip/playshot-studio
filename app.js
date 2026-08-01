@@ -63,6 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
     feature:  { portrait: { width: 1024, height: 500 }, landscape: { width: 1024, height: 500 } }
   };
 
+  // ── 全語言模式 helper & 渲染控制 ──
+  const ALL_LANGS = ['zh','en','ja','ko'];
+  const LANG_FLAGS = { zh:'🇹🇼', en:'🇺🇸', ja:'🇯🇵', ko:'🇰🇷' };
+  let renderRafId = null;
+
   function getCurrentImage() {
     return state.screenshots[state.currentScreenshotIdx]?.image || null;
   }
@@ -282,7 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
           iconDataUrl: state.iconDataUrl,
           iconColors: state.iconColors
         }));
-      } catch (e) { /* 儲存空間不足時靜默忽略 */ }
+      } catch (e) {
+        // 儲存空間不足或其他寫入失敗時提醒使用者，避免調整內容悄悄遺失
+        showToast('⚠️ 瀏覽器儲存空間不足，部分內容可能未保存', 'error');
+      }
     }, 500);
   }
 
@@ -630,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.captionZH_top = e.target.value;
       state.translations_top.zh = e.target.value;
       el.transZHTop.value = e.target.value;
-      if (state.currentLangPreview === 'zh') triggerAllRenders();
+      if (state.currentLangPreview === 'zh' || state.currentLangPreview === 'all') triggerAllRenders();
       saveState();
       clearTimeout(debounceTop);
       debounceTop = setTimeout(() => {
@@ -650,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.captionZH_bottom = e.target.value;
       state.translations_bottom.zh = e.target.value;
       el.transZHBottom.value = e.target.value;
-      if (state.currentLangPreview === 'zh') triggerAllRenders();
+      if (state.currentLangPreview === 'zh' || state.currentLangPreview === 'all') triggerAllRenders();
       saveState();
       clearTimeout(debounceBottom);
       debounceBottom = setTimeout(() => {
@@ -668,12 +676,12 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnTranslate.addEventListener('click', translateAllLanguages);
 
     // 翻譯面板手動編輯
-    el.transENTop.addEventListener('input', e => { state.translations_top.en = e.target.value; if (state.currentLangPreview === 'en') triggerAllRenders(); saveState(); });
-    el.transJATop.addEventListener('input', e => { state.translations_top.ja = e.target.value; if (state.currentLangPreview === 'ja') triggerAllRenders(); saveState(); });
-    el.transKOTop.addEventListener('input', e => { state.translations_top.ko = e.target.value; if (state.currentLangPreview === 'ko') triggerAllRenders(); saveState(); });
-    el.transENBottom.addEventListener('input', e => { state.translations_bottom.en = e.target.value; if (state.currentLangPreview === 'en') triggerAllRenders(); saveState(); });
-    el.transJABottom.addEventListener('input', e => { state.translations_bottom.ja = e.target.value; if (state.currentLangPreview === 'ja') triggerAllRenders(); saveState(); });
-    el.transKOBottom.addEventListener('input', e => { state.translations_bottom.ko = e.target.value; if (state.currentLangPreview === 'ko') triggerAllRenders(); saveState(); });
+    el.transENTop.addEventListener('input', e => { state.translations_top.en = e.target.value; if (state.currentLangPreview === 'en' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
+    el.transJATop.addEventListener('input', e => { state.translations_top.ja = e.target.value; if (state.currentLangPreview === 'ja' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
+    el.transKOTop.addEventListener('input', e => { state.translations_top.ko = e.target.value; if (state.currentLangPreview === 'ko' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
+    el.transENBottom.addEventListener('input', e => { state.translations_bottom.en = e.target.value; if (state.currentLangPreview === 'en' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
+    el.transJABottom.addEventListener('input', e => { state.translations_bottom.ja = e.target.value; if (state.currentLangPreview === 'ja' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
+    el.transKOBottom.addEventListener('input', e => { state.translations_bottom.ko = e.target.value; if (state.currentLangPreview === 'ko' || state.currentLangPreview === 'all') triggerAllRenders(); saveState(); });
 
     el.langTabs.forEach(tab => tab.addEventListener('click', () => {
       el.langTabs.forEach(t => t.classList.remove('active'));
@@ -813,11 +821,80 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function fetchTranslation(text, lang) {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    if (data?.[0]) return data[0].map(i => i[0]).join('');
+    const apiKey = loadApiKey();
+    if (apiKey) {
+      try {
+        const langNames = { en: 'English', ja: 'Japanese', ko: 'Korean' };
+        const targetLang = langNames[lang] || lang;
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a professional App translator. Translate the given Traditional Chinese text into ${targetLang}. Return ONLY the direct translation, with absolutely no explanations, notes, metadata or markdown wrapping.`
+              },
+              {
+                role: 'user',
+                content: text
+              }
+            ],
+            temperature: 0.3
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const translated = data.choices[0].message.content.trim();
+          if (translated) return translated;
+        }
+      } catch (err) {
+        console.warn('OpenAI translation failed, falling back to Google Translate:', err);
+      }
+    }
+
+    // Fallback 1: Google Translate APIs (translate.googleapis.com)
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.[0]) return data[0].map(i => i[0]).join('');
+      }
+    } catch (err) {
+      console.warn('googleapis translation failed, trying google.com:', err);
+    }
+
+    // Fallback 2: Google Translate API (translate.google.com)
+    try {
+      const url = `https://translate.google.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.[0]) return data[0].map(i => i[0]).join('');
+      }
+    } catch (err) {
+      console.warn('google.com translation failed, trying MyMemory:', err);
+    }
+
+    // Fallback 3: MyMemory API
+    try {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh-TW|${lang}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.responseData?.translatedText) {
+          return data.responseData.translatedText;
+        }
+      }
+    } catch (err) {
+      console.error('All translation APIs failed:', err);
+    }
+
     return text;
   }
 
@@ -865,9 +942,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── 全語言模式 helper ──────────────────────────────────────────
-  const ALL_LANGS = ['zh','en','ja','ko'];
-  const LANG_FLAGS = { zh:'🇹🇼', en:'🇺🇸', ja:'🇯🇵', ko:'🇰🇷' };
-
   function calcAllLangTextHeight(ctx, field, maxW, fontSize, lineHeight, fontFamily) {
     const sz = Math.round(fontSize * 0.68);
     const gap = Math.round(sz * 0.4);
@@ -905,11 +979,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── 渲染 ─────────────────────────────────────────────────────────
+  // 用 requestAnimationFrame 合併同一畫面內的多次呼叫，
+  // 避免拖曳滑桿/拖曳文字時每個 mousemove 都重繪 4 張全解析度 Canvas 造成卡頓
   function triggerAllRenders() {
-    renderDeviceCanvas('phone',    el.canvasPhone);
-    renderDeviceCanvas('tablet7',  el.canvasTablet7);
-    renderDeviceCanvas('tablet10', el.canvasTablet10);
-    renderDeviceCanvas('feature',  el.canvasFeature);
+    if (renderRafId !== null) return;
+    renderRafId = requestAnimationFrame(() => {
+      renderRafId = null;
+      renderDeviceCanvas('phone',    el.canvasPhone);
+      renderDeviceCanvas('tablet7',  el.canvasTablet7);
+      renderDeviceCanvas('tablet10', el.canvasTablet10);
+      renderDeviceCanvas('feature',  el.canvasFeature);
+    });
   }
 
   // 中日韓語系強制使用 Noto Sans 對應字型（其他語系尊重使用者設定）
@@ -1400,7 +1480,15 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let si=0; si<shotCount; si++) {
         state.currentScreenshotIdx = si;
         for (const lang of langs) {
-          const folderName = shotCount>1 ? `${lang.toUpperCase()}/截圖_${si+1}` : lang.toUpperCase();
+          const screenshot = state.screenshots[si];
+          let subFolderName = `phone_${si+1}`;
+          if (screenshot && screenshot.fileName) {
+            const baseName = screenshot.fileName.replace(/\.[^/.]+$/, "");
+            if (baseName) {
+              subFolderName = baseName;
+            }
+          }
+          const folderName = shotCount>1 ? `${lang.toUpperCase()}/${subFolderName}` : lang.toUpperCase();
           const folder = zip.folder(folderName);
           for (const device of devices) {
             renderDeviceCanvas(device, tempCanvas, lang);
@@ -1424,8 +1512,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const content = await zip.generateAsync({ type: 'blob' });
       const a = document.createElement('a');
       a.download = `playshot_${ori}.zip`;
-      a.href = URL.createObjectURL(content);
+      const zipUrl = URL.createObjectURL(content);
+      a.href = zipUrl;
       a.click();
+      URL.revokeObjectURL(zipUrl); // 觸發下載後立即釋放，避免記憶體洩漏
       showToast('ZIP 打包下載成功！', 'success');
     } catch (err) {
       console.error(err);
