@@ -15,7 +15,7 @@
   <!-- PDF.js for client-side PDF parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <div class="app-container">
@@ -135,7 +135,7 @@
               <label for="ai-prompt" style="display:flex;justify-content:space-between;align-items:center;">
                 Prompt 描述（支援中文）
                 <div style="display:flex; gap:8px; align-items:center;">
-                  <button id="btn-prompt-helper" type="button" style="font-size:0.72rem;color:#818cf8;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;display:flex;align-items:center;gap:2px;font-weight:600;"><i data-lucide="sparkles" style="width:12px;height:12px;"></i>AI 助手</button>
+                  <button id="btn-prompt-helper" type="button" style="font-size:0.72rem;color:#FB923C;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;display:flex;align-items:center;gap:2px;font-weight:600;"><i data-lucide="sparkles" style="width:12px;height:12px;"></i>AI 助手</button>
                   <button id="btn-clear-prompt" type="button" style="font-size:0.7rem;color:#9ca3af;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;line-height:1;">清空</button>
                 </div>
               </label>
@@ -488,6 +488,7 @@
           </div>
         </div><!-- end tab-translate -->
 
+        <div class="ad-slot" data-ad-slot="panel"></div>
       </aside>
 
       <!-- Center Work Area / Preview Grid -->
@@ -574,5 +575,7 @@
   </div>
 
   <script src="app.js?v=8"></script>
+  <script src="ads-config.js"></script>
+  <script src="ads.js"></script>
 </body>
 </html>
