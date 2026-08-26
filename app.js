@@ -1454,8 +1454,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el.hybridModeHint) {
       el.hybridModeHint.style.display = isHybrid ? 'block' : 'none';
       el.hybridModeHint.textContent = isIos
-        ? 'iPhone 格使用上傳截圖，iPad 格由 AI 生成（只需生 1 張）'
-        : '手機格使用上傳截圖，Feature Graphic 與平板格由 AI 生成（只需生 2 張）';
+        ? '你上傳的截圖會直接用在 iPhone 那張圖上；iPad 那張沒有你的截圖，改由 AI 幫你另外生成一張示意圖（只要生成 1 張，比較快）。'
+        : '你上傳的截圖會直接用在手機那張圖上；平板圖和 Feature Graphic 橫幅沒有你的截圖，改由 AI 幫你另外生成（只要生成 2 張，比較快）。';
     }
     if (el.hybridFeatureGroup) el.hybridFeatureGroup.style.display = (isHybrid && !isIos) ? 'block' : 'none';
 
