@@ -1,10 +1,10 @@
 # PlayShot Studio
 
-**Google Play 商店展示圖一鍵生成工具**
+**Android／iOS 商店截圖一鍵生成工具**
 
 純前端靜態網頁，無需後端、無需安裝，瀏覽器直接使用。
 
-**線上版本：** https://playshot-studio.vercel.app
+**線上版本：** https://playshotstudio.maxteng.org
 
 ---
 
@@ -12,11 +12,23 @@
 
 ### 裝置規格支援
 
+依「平台」切換鈕分兩組，切換後預覽卡片、AI 生成、ZIP 匯出皆自動連動：
+
+**Android（Google Play）**
+
 | 裝置 | 直式解析度 | 橫式解析度 |
 |------|-----------|-----------|
 | 手機 (Phone) | 1080 × 2280 | 2280 × 1080 |
 | 7 吋平板 (7" Tablet) | 1200 × 1920 | 1920 × 1200 |
 | 10 吋平板 (10" Tablet) | 1600 × 2560 | 2560 × 1600 |
+| 主視覺橫幅 (Feature Graphic) | 1024 × 500 | 1024 × 500 |
+
+**iOS（App Store，Apple 現行規定只需最大尺寸一種，其餘機型自動縮放）**
+
+| 裝置 | 直式解析度 | 橫式解析度 |
+|------|-----------|-----------|
+| iPhone (6.9") | 1320 × 2868 | 2868 × 1320 |
+| iPad (13") | 2064 × 2752 | 2752 × 2064 |
 
 ### 排版與設計
 
@@ -98,10 +110,14 @@ vercel --prod
 
 ```
 playshot-studio/
-├── index.html   # 主頁面與所有 UI 元件
-├── styles.css   # 全域樣式與 CSS 變數系統
-├── app.js       # 核心邏輯（Canvas 渲染、狀態管理、匯出）
-└── README.md    # 本文件
+├── playshot-studio.html   # 主頁面與所有 UI 元件
+├── styles.css             # 全域樣式與 CSS 變數系統
+├── app.js                 # 核心邏輯（Canvas 渲染、狀態管理、匯出）
+├── ads-config.js          # AdSense 客戶 ID／廣告版位設定（安全預設，未填不啟用）
+├── ads.js                 # 讀取 ads-config.js 並插入廣告標籤
+├── ads.txt                # AdSense 收益驗證用
+├── robots.txt             # 搜尋引擎爬蟲規則
+└── README.md              # 本文件
 ```
 
 ---
@@ -118,7 +134,7 @@ playshot-studio/
 
 ### 功能擴充
 
-- [ ] **App Store 規格支援**：新增 iOS App Store 所需尺寸（iPhone 6.9"、iPad 13"）
+- [x] **App Store 規格支援**：新增 iOS App Store 所需尺寸（iPhone 6.9"、iPad 13"），見 v2.4
 - [ ] **Logo 浮水印**：支援在畫面角落放置 App icon 或品牌 Logo
 - [ ] **文字對齊方式**：目前固定居中，可新增左對齊 / 右對齊選項
 - [ ] **多語言自動翻譯 API key**：目前翻譯功能若失效，需確認 API 串接是否正常
@@ -144,3 +160,7 @@ playshot-studio/
 | v1.2 | 2026-06-01 | 新增 5 種背景裝飾（Dots / Rings / Network / Spotlight / Glow）；佈署至 Vercel |
 | v2.0 | 2026-06-07 | 介面大改版：Tab 分頁側欄、亮色主題、翻譯功能移入 Tab、AI Prompt 清空鍵 |
 | v2.1 | 2026-06-12 | **Bug fix**：修復「🌐 全語言」預覽模式未顯示四種語言的問題（`app.js` `renderAllLangText` / `calcAllLangTextHeight` 加入 ZH fallback，確保未翻譯語系也能佔位顯示） |
+| v2.2 | 2026-08-26 | **品牌重新設計＋廣告 scaffold**：全站主色從 indigo/purple（#6366f1）換成 orange/rose（#F97316/#F43F5E），跟 RoadGuard／SlimDrop／Living Portrait 區隔出獨立識別，只換 UI chrome 顏色，畫布內容用的漸層色選項不動；新增 `ads-config.js`/`ads.js`，比照 SlimDrop 的安全預設模式，沒填 AdSense 客戶 ID 完全不會插入廣告或佔版面。 |
+| v2.3 | 2026-08-26 | **接自訂網域＋SEO/GA4**：接上 `playshotstudio.maxteng.org`（原 `playshot-studio.vercel.app`），新增 SEO meta／OG／Twitter 標籤、`ads.txt`、`robots.txt`，GA4 資源「PlayShot Studio」（Measurement ID `G-EE3EHJ0DK3`），Search Console 已用 HTML 標記驗證擁有權並要求建立索引。 |
+| v2.4 | 2026-08-26 | **新增 iOS App Store 尺寸支援＋平台切換**：`DEVICE_SPECS` 新增 iPhone（1320×2868）／iPad（2064×2752），新增「平台」切換鈕（Android/iOS），切換後預覽卡片、解析度標籤、AI 生成、ZIP 匯出、裝置外框樣式（iPhone 用瀏海、iPad 用平板圓點鏡頭）全部連動；iOS 無 Feature Graphic 概念，切 iOS 時該卡片與其 AI prompt 欄位自動隱藏；混合模式在 iOS 對應改為「iPhone 上傳＋iPad AI 生成」；`state.platform` 存入 localStorage，重新整理保留選擇。網站標題／meta／header 文案同步改為 Android + iOS 並列，不再寫死 Google Play。修正一個 TDZ bug（`CANVAS_BY_DEVICE` 宣告在 `init()` 呼叫之後導致 `ReferenceError`）。 |
+| v2.5 | 2026-08-26 | **混合模式說明文字改白話**：原文案「iPhone 格使用上傳截圖，iPad 格由 AI 生成」使用者反映看不懂，改成完整句子說明「哪張圖是你上傳的、哪張是 AI 生成的」及其原因。 |
