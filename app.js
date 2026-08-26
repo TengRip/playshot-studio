@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const state = {
     screenshots: [],          // [{ image, dataUrl, fileName }]
     currentScreenshotIdx: 0,
+    platform: 'android',      // 'android' | 'ios'
     orientation: 'portrait',
     fitMode: 'cover',
     showDeviceFrame: true,
@@ -43,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
     aiStyle: 'app mockup, modern UI, clean design, 3d render',
     aiSeed: 42,
     aiCohesiveSeed: true,
-    aiImages: { phone: null, tablet7: null, tablet10: null, feature: null },
-    aiDataUrls: { phone: null, tablet7: null, tablet10: null, feature: null },
+    aiImages: { phone: null, tablet7: null, tablet10: null, feature: null, iphone: null, ipad: null },
+    aiDataUrls: { phone: null, tablet7: null, tablet10: null, feature: null, iphone: null, ipad: null },
     iconDataUrl: null,
     iconColors: []
   };
@@ -53,15 +54,38 @@ document.addEventListener('DOMContentLoaded', () => {
     phone:    { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     tablet7:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     tablet10: { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
-    feature:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
+    feature:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
+    iphone:   { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
+    ipad:     { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
   };
 
+  // Apple 現行規定（2026 起）只需最大尺寸一種，其他機型由 App Store 自動縮放，
+  // 不用像 Android 一樣每個裝置尺寸各準備一套
   const DEVICE_SPECS = {
     phone:    { portrait: { width: 1080, height: 2280 }, landscape: { width: 2280, height: 1080 } },
     tablet7:  { portrait: { width: 1200, height: 1920 }, landscape: { width: 1920, height: 1200 } },
     tablet10: { portrait: { width: 1600, height: 2560 }, landscape: { width: 2560, height: 1600 } },
-    feature:  { portrait: { width: 1024, height: 500 }, landscape: { width: 1024, height: 500 } }
+    feature:  { portrait: { width: 1024, height: 500 }, landscape: { width: 1024, height: 500 } },
+    iphone:   { portrait: { width: 1320, height: 2868 }, landscape: { width: 2868, height: 1320 } },
+    ipad:     { portrait: { width: 2064, height: 2752 }, landscape: { width: 2752, height: 2064 } }
   };
+
+  const PLATFORM_DEVICES = {
+    android: ['phone', 'tablet7', 'tablet10', 'feature'],
+    ios: ['iphone', 'ipad']
+  };
+
+  const CANVAS_BY_DEVICE = {
+    phone: 'canvasPhone', tablet7: 'canvasTablet7', tablet10: 'canvasTablet10', feature: 'canvasFeature',
+    iphone: 'canvasIphone', ipad: 'canvasIpad'
+  };
+
+  function getOrientationHint(orientation) {
+    if (orientation === 'landscape') return '所有截圖均為橫式（適合遊戲或橫向 App）。';
+    return state.platform === 'ios'
+      ? 'iPhone 和 iPad 截圖皆用直式。'
+      : '手機和平板截圖用直式，Feature Graphic 固定橫式。';
+  }
 
   // ── 全語言模式 helper & 渲染控制 ──
   const ALL_LANGS = ['zh','en','ja','ko'];
@@ -85,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnAddShot:         document.getElementById('btn-add-shot'),
     btnRemoveShot:      document.getElementById('btn-remove-shot'),
     orientationBtns:    document.querySelectorAll('[data-orientation]'),
+    platformBtns:       document.querySelectorAll('[data-platform]'),
     selectFitMode:      document.getElementById('select-fit-mode'),
     selectLayoutMode:   document.getElementById('select-layout-mode'),
     toggleDeviceFrame:  document.getElementById('toggle-device-frame'),
@@ -132,10 +157,14 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasTablet7:  document.getElementById('canvas-tablet7'),
     canvasTablet10: document.getElementById('canvas-tablet10'),
     canvasFeature:  document.getElementById('canvas-feature'),
+    canvasIphone:   document.getElementById('canvas-iphone'),
+    canvasIpad:     document.getElementById('canvas-ipad'),
     resPhone:       document.getElementById('res-phone'),
     resTablet7:     document.getElementById('res-tablet7'),
     resTablet10:    document.getElementById('res-tablet10'),
     resFeature:     document.getElementById('res-feature'),
+    resIphone:      document.getElementById('res-iphone'),
+    resIpad:        document.getElementById('res-ipad'),
     btnExportAll:    document.getElementById('btn-export-all'),
     btnExportSingles: document.querySelectorAll('.btn-export-single'),
     transZHTop:    document.getElementById('trans-zh-top'),
@@ -262,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTimer = setTimeout(() => {
       try {
         localStorage.setItem('playshot_v2', JSON.stringify({
+          platform: state.platform,
           orientation: state.orientation, fitMode: state.fitMode,
           showDeviceFrame: state.showDeviceFrame, bgType: state.bgType,
           bgColor: state.bgColor, gradStart: state.gradStart, gradEnd: state.gradEnd,
@@ -300,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!raw) return;
       const saved = JSON.parse(raw);
       const keys = [
+        'platform',
         'orientation','fitMode','showDeviceFrame','bgType','bgColor','gradStart','gradEnd',
         'captionZH_top','fontFamily_top','fontSize_top','lineHeight_top','textColor_top',
         'textMargin_top','showTextShadow_top','translations_top',
@@ -574,11 +605,15 @@ document.addEventListener('DOMContentLoaded', () => {
       updateResolutionLabels();
       triggerAllRenders();
       saveState();
-      const hints = {
-        portrait: '手機和平板截圖用直式，Feature Graphic 固定橫式。',
-        landscape: '所有截圖均為橫式（適合遊戲或橫向 App）。'
-      };
-      if (el.oriHint) { el.oriHint.textContent = hints[ori]; el.oriHint.style.display = 'block'; }
+      if (el.oriHint) { el.oriHint.textContent = getOrientationHint(ori); el.oriHint.style.display = 'block'; }
+    }));
+
+    // 平台（Android / iOS）
+    el.platformBtns.forEach(btn => btn.addEventListener('click', () => {
+      state.platform = btn.getAttribute('data-platform');
+      updateUIState();
+      triggerAllRenders();
+      saveState();
     }));
 
     el.selectFitMode.addEventListener('change', e => { state.fitMode = e.target.value; triggerAllRenders(); saveState(); });
@@ -694,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnZoomOut.addEventListener('click', () => { state.zoom = Math.max(state.zoom - 0.05, 0.1); adjustZoom(); saveState(); });
     el.btnZoomReset.addEventListener('click', () => {
       const h = el.canvasGrid.clientHeight;
-      const ch = state.orientation === 'portrait' ? 2560 : 1600;
+      const ch = Math.max(...PLATFORM_DEVICES[state.platform].map(d => DEVICE_SPECS[d][state.orientation].height));
       state.zoom = parseFloat(Math.min(Math.max((h - 120) / ch, 0.1), 0.6).toFixed(2));
       adjustZoom(); saveState();
     });
@@ -985,10 +1020,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (renderRafId !== null) return;
     renderRafId = requestAnimationFrame(() => {
       renderRafId = null;
-      renderDeviceCanvas('phone',    el.canvasPhone);
-      renderDeviceCanvas('tablet7',  el.canvasTablet7);
-      renderDeviceCanvas('tablet10', el.canvasTablet10);
-      renderDeviceCanvas('feature',  el.canvasFeature);
+      PLATFORM_DEVICES[state.platform].forEach(key => {
+        renderDeviceCanvas(key, el[CANVAS_BY_DEVICE[key]]);
+      });
     });
   }
 
@@ -1015,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.imageSource === 'ai') {
       uploadedImage = state.aiImages[deviceKey];
     } else if (state.imageSource === 'hybrid') {
-      if (deviceKey === 'phone') {
+      if (deviceKey === 'phone' || deviceKey === 'iphone') {
         uploadedImage = getCurrentImage();
       } else if (deviceKey === 'tablet10') {
         // 10 吋與 7 吋長寬比相同，共用同一張 AI 圖
@@ -1172,6 +1206,8 @@ document.addEventListener('DOMContentLoaded', () => {
       phone:    vert ? 1080/2280 : 2280/1080,
       tablet7:  vert ? 1200/1920 : 1920/1200,
       tablet10: vert ? 1600/2560 : 2560/1600,
+      iphone:   vert ? 1320/2868 : 2868/1320,
+      ipad:     vert ? 2064/2752 : 2752/2064,
     };
     const sr = screenRatios[deviceKey];
     let dW, dH;
@@ -1227,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.restore();
 
     ctx.fillStyle='#000';
-    if (deviceKey==='phone') {
+    if (deviceKey==='phone' || deviceKey==='iphone') {
       if (isVert) {
         const iw=w*0.28,ih=Math.max(h*0.022,24);
         drawRoundedRectPath(ctx,x+(w-iw)/2,y+bt+bt*0.2,iw,ih,ih/2); ctx.fill();
@@ -1282,7 +1318,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── 拖曳文字 ──────────────────────────────────────────────────────
   function setupDraggableText() {
     let drag = null;
-    ['phone','tablet7','tablet10','feature'].forEach(key => {
+    ['phone','tablet7','tablet10','feature','iphone','ipad'].forEach(key => {
       const canvas = document.getElementById(`canvas-${key}`);
       if (!canvas) return;
 
@@ -1382,9 +1418,10 @@ document.addEventListener('DOMContentLoaded', () => {
     el.orientationBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-orientation')===state.orientation));
     el.canvasGrid.classList.toggle('landscape', state.orientation==='landscape');
     el.appOriPicker.forEach(b => b.classList.toggle('active', b.getAttribute('data-app-ori')===state.orientation));
+    el.platformBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-platform')===state.platform));
+    updatePlatformVisibility();
     if (el.oriHint && state.orientation) {
-      const hints = { portrait: '手機和平板截圖用直式，Feature Graphic 固定橫式。', landscape: '所有截圖均為橫式（適合遊戲或橫向 App）。' };
-      el.oriHint.textContent = hints[state.orientation];
+      el.oriHint.textContent = getOrientationHint(state.orientation);
       el.oriHint.style.display = 'block';
     }
     el.langTabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-lang')===state.currentLangPreview));
@@ -1413,13 +1450,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (el.secUploadScreenshots) el.secUploadScreenshots.style.display = isAi ? 'none' : 'block';
     if (el.secAiGenerator)       el.secAiGenerator.style.display       = (isAi || isHybrid) ? 'block' : 'none';
-    if (el.hybridModeHint)       el.hybridModeHint.style.display        = isHybrid ? 'block' : 'none';
-    if (el.hybridFeatureGroup)   el.hybridFeatureGroup.style.display    = isHybrid ? 'block' : 'none';
+    const isIos = state.platform === 'ios';
+    if (el.hybridModeHint) {
+      el.hybridModeHint.style.display = isHybrid ? 'block' : 'none';
+      el.hybridModeHint.textContent = isIos
+        ? 'iPhone 格使用上傳截圖，iPad 格由 AI 生成（只需生 1 張）'
+        : '手機格使用上傳截圖，Feature Graphic 與平板格由 AI 生成（只需生 2 張）';
+    }
+    if (el.hybridFeatureGroup) el.hybridFeatureGroup.style.display = (isHybrid && !isIos) ? 'block' : 'none';
 
     if (el.btnGenerateAi) {
-      el.btnGenerateAi.innerHTML = isHybrid
-        ? '<i data-lucide="sparkles"></i> 生成 Feature Graphic + 平板示意圖（2 張）'
-        : '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
+      let label;
+      if (isIos) {
+        label = isHybrid ? '生成 iPad 示意圖（1 張）' : '一鍵生成所有規格圖片';
+      } else {
+        label = isHybrid ? '生成 Feature Graphic + 平板示意圖（2 張）' : '一鍵生成所有規格圖片';
+      }
+      el.btnGenerateAi.innerHTML = `<i data-lucide="sparkles"></i> ${label}`;
       if (typeof lucide !== 'undefined') lucide.createIcons();
     }
     if (el.hybridFeaturePrompt) el.hybridFeaturePrompt.value = state.aiPromptFeature;
@@ -1436,6 +1483,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el.resFeature) {
       el.resFeature.textContent = `${DEVICE_SPECS.feature[p].width} x ${DEVICE_SPECS.feature[p].height}`;
     }
+    if (el.resIphone) {
+      el.resIphone.textContent = `${DEVICE_SPECS.iphone[p].width} x ${DEVICE_SPECS.iphone[p].height}`;
+    }
+    if (el.resIpad) {
+      el.resIpad.textContent = `${DEVICE_SPECS.ipad[p].width} x ${DEVICE_SPECS.ipad[p].height}`;
+    }
+  }
+
+  // 依平台切換右側預覽卡片：Android 顯示手機/7吋/10吋/主視覺橫幅，iOS 只顯示 iPhone/iPad
+  function updatePlatformVisibility() {
+    const activeDevices = PLATFORM_DEVICES[state.platform];
+    Object.keys(CANVAS_BY_DEVICE).forEach(key => {
+      const card = document.querySelector(`.preview-card[data-device="${key}"]`);
+      if (card) card.style.display = activeDevices.includes(key) ? 'flex' : 'none';
+    });
   }
 
   function adjustZoom() {
@@ -1468,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = true;
     const tempCanvas = document.createElement('canvas');
     const zip = new JSZip();
-    const devices = ['phone','tablet7','tablet10','feature'];
+    const devices = PLATFORM_DEVICES[state.platform];
     const langs = ['zh','en','ja','ko','all'];
     const ori = state.orientation==='portrait' ? '直式' : '橫式';
     const shotCount = state.imageSource === 'ai' ? 1 : Math.max(state.screenshots.length, 1);
@@ -1481,7 +1543,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentScreenshotIdx = si;
         for (const lang of langs) {
           const screenshot = state.screenshots[si];
-          let subFolderName = `phone_${si+1}`;
+          let subFolderName = `shot_${si+1}`;
           if (screenshot && screenshot.fileName) {
             const baseName = screenshot.fileName.replace(/\.[^/.]+$/, "");
             if (baseName) {
@@ -1511,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerHTML = '<i class="spinner"></i> 封裝壓縮中...';
       const content = await zip.generateAsync({ type: 'blob' });
       const a = document.createElement('a');
-      a.download = `playshot_${ori}.zip`;
+      a.download = `playshot_${state.platform}_${ori}.zip`;
       const zipUrl = URL.createObjectURL(content);
       a.href = zipUrl;
       a.click();
@@ -1586,9 +1648,10 @@ document.addEventListener('DOMContentLoaded', () => {
       finalPrompt += ', harmonious color palette inspired by app icon: ' + state.iconColors.join(', ');
     }
 
+    const isIosPlatform = state.platform === 'ios';
     const devices = state.imageSource === 'hybrid'
-      ? ['tablet7', 'feature']
-      : ['phone', 'tablet7', 'tablet10', 'feature'];
+      ? (isIosPlatform ? ['ipad'] : ['tablet7', 'feature'])
+      : PLATFORM_DEVICES[state.platform];
     let successCount = 0;
     const failed = [];
 

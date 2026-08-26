@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PlayShot Studio｜Google Play 商店展示圖產生器</title>
-  <meta name="description" content="免費線上工具，一鍵生成 Google Play 商店所需的手機/平板截圖與主視覺橫幅，支援上傳截圖、AI 自動生成背景、多語言排版與一鍵批次匯出。">
-  <meta property="og:title" content="PlayShot Studio｜Google Play 商店展示圖產生器">
-  <meta property="og:description" content="免費線上工具，一鍵生成 Google Play 商店所需的截圖與主視覺橫幅，支援 AI 生成背景與多語言排版。">
+  <title>PlayShot Studio｜App 上架截圖產生器（Android + iOS）</title>
+  <meta name="description" content="免費線上工具，一鍵生成 Android（Google Play）與 iOS（App Store）所需的商店截圖與主視覺橫幅，支援上傳截圖、AI 自動生成背景、多語言排版與一鍵批次匯出。">
+  <meta property="og:title" content="PlayShot Studio｜App 上架截圖產生器（Android + iOS）">
+  <meta property="og:description" content="免費線上工具，一鍵生成 Android／iOS 商店截圖與主視覺橫幅，支援 AI 生成背景與多語言排版。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://playshotstudio.maxteng.org/">
   <link rel="canonical" href="https://playshotstudio.maxteng.org/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="PlayShot Studio｜Google Play 商店展示圖產生器">
-  <meta name="twitter:description" content="免費線上工具，一鍵生成 Google Play 商店所需的截圖與主視覺橫幅，支援 AI 生成背景與多語言排版。">
+  <meta name="twitter:title" content="PlayShot Studio｜App 上架截圖產生器（Android + iOS）">
+  <meta name="twitter:description" content="免費線上工具，一鍵生成 Android／iOS 商店截圖與主視覺橫幅，支援 AI 生成背景與多語言排版。">
   <meta name="google-site-verification" content="bFOOjY-Jiv8nz-gyWNIiwLq9Ypd6j3GTIvrlajk4Rp8">
   <!-- Google Analytics 4 -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-EE3EHJ0DK3"></script>
@@ -33,7 +33,7 @@
   <!-- PDF.js for client-side PDF parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div class="app-container">
@@ -43,7 +43,7 @@
         <div class="logo-icon"><i data-lucide="smartphone"></i></div>
         <div>
           <h1>PlayShot Studio</h1>
-          <p>Google Play 商店展示圖一鍵生成工具</p>
+          <p>Android／iOS 商店截圖一鍵生成工具</p>
         </div>
       </div>
       <div class="header-actions">
@@ -81,6 +81,19 @@
 
         <!-- ── Tab 1: 圖片 ───────────────────────────────────── -->
         <div class="tab-content active" id="tab-image">
+
+          <!-- 平台 -->
+          <div class="panel-section">
+            <div class="section-label">平台</div>
+            <div class="toggle-buttons" id="platform-picker">
+              <button class="toggle-btn active" data-platform="android">
+                <i data-lucide="smartphone"></i> Android（Google Play）
+              </button>
+              <button class="toggle-btn" data-platform="ios">
+                <i data-lucide="smartphone"></i> iOS（App Store）
+              </button>
+            </div>
+          </div>
 
           <!-- App 類型 -->
           <div class="panel-section">
@@ -277,7 +290,7 @@
               <div class="control-group half" style="display:flex;align-items:flex-end;padding-bottom:2px;">
                 <label for="toggle-device-frame" class="checkbox-label" style="margin-top:0;">
                   <input type="checkbox" id="toggle-device-frame" checked>
-                  顯示手機外框
+                  顯示裝置外框
                 </label>
               </div>
             </div>
@@ -579,6 +592,30 @@
               <canvas id="canvas-feature"></canvas>
             </div>
           </div>
+
+          <!-- iPhone Card -->
+          <div class="preview-card" data-device="iphone" style="display:none;">
+            <div class="card-header">
+              <span class="device-name"><i data-lucide="smartphone"></i> iPhone (6.9")</span>
+              <span class="device-resolution" id="res-iphone">1320 x 2868</span>
+              <button class="btn-export-single" data-device="iphone" title="下載單張圖片"><i data-lucide="download"></i></button>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-iphone"></canvas>
+            </div>
+          </div>
+
+          <!-- iPad Card -->
+          <div class="preview-card" data-device="ipad" style="display:none;">
+            <div class="card-header">
+              <span class="device-name"><i data-lucide="tablet"></i> iPad (13")</span>
+              <span class="device-resolution" id="res-ipad">2064 x 2752</span>
+              <button class="btn-export-single" data-device="ipad" title="下載單張圖片"><i data-lucide="download"></i></button>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="canvas-ipad"></canvas>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -592,7 +629,7 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
   <script src="ads-config.js"></script>
   <script src="ads.js"></script>
 </body>

@@ -769,6 +769,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .preview-card[data-device="feature"] {
   width: calc(1024px * var(--zoom-factor) + 32px);
 }
+.preview-card[data-device="iphone"] {
+  width: calc(1320px * var(--zoom-factor) + 32px);
+}
+.preview-card[data-device="ipad"] {
+  width: calc(2064px * var(--zoom-factor) + 32px);
+}
 
 /* Landscape Widths */
 .canvas-grid.landscape .preview-card[data-device="phone"] {
@@ -782,6 +788,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 .canvas-grid.landscape .preview-card[data-device="feature"] {
   width: calc(1024px * var(--zoom-factor) + 32px);
+}
+.canvas-grid.landscape .preview-card[data-device="iphone"] {
+  width: calc(2868px * var(--zoom-factor) + 32px);
+}
+.canvas-grid.landscape .preview-card[data-device="ipad"] {
+  width: calc(2752px * var(--zoom-factor) + 32px);
 }
 
 .card-header {
