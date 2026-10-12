@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentLangPreview: 'zh',
     zoom: 0.3,
     layoutMode: 'vertical',
+    textAlign: 'auto',        // 'auto' | 'left' | 'center' | 'right'（auto = 沿用排版樣式的預設對齊）
     bgPattern: 'none',
     uploadedBgImage: null,
     bgImageDataUrl: null,
@@ -57,6 +58,17 @@ document.addEventListener('DOMContentLoaded', () => {
     feature:  { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     iphone:   { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } },
     ipad:     { top: { y1: 0, y2: 0 }, bottom: { y1: 0, y2: 0 } }
+  };
+
+  // 「恢復預設樣式」會用到的預設值（只包含外觀，不含截圖和文字內容）
+  const DEFAULT_STYLE = {
+    fitMode: 'cover', showDeviceFrame: true, bgType: 'gradient', bgColor: '#3b82f6',
+    gradStart: '#1e1b4b', gradEnd: '#311042', layoutMode: 'vertical', textAlign: 'auto',
+    bgPattern: 'none', bgOverlayOpacity: 0,
+    fontFamily_top: 'Outfit', fontSize_top: 70, lineHeight_top: 1.3, textColor_top: '#ffffff',
+    textMargin_top: 80, showTextShadow_top: true,
+    fontFamily_bottom: 'Outfit', fontSize_bottom: 45, lineHeight_bottom: 1.3, textColor_bottom: '#a5b4fc',
+    textMargin_bottom: 80, showTextShadow_bottom: true
   };
 
   // Apple 現行規定（2026 起）只需最大尺寸一種，其他機型由 App Store 自動縮放，
@@ -147,6 +159,11 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleShadowBottom:    document.getElementById('toggle-shadow-bottom'),
     btnTranslate:   document.getElementById('btn-translate'),
     btnReset:       document.getElementById('btn-reset'),
+    btnResetStyle:  document.getElementById('btn-reset-style'),
+    btnSaveProject: document.getElementById('btn-save-project'),
+    btnLoadProject: document.getElementById('btn-load-project'),
+    projectFileInput: document.getElementById('project-file-input'),
+    selectTextAlign: document.getElementById('select-text-align'),
     langTabs:       document.querySelectorAll('.lang-tab'),
     zoomValue:      document.getElementById('zoom-value'),
     btnZoomIn:      document.getElementById('btn-zoom-in'),
@@ -220,16 +237,26 @@ document.addEventListener('DOMContentLoaded', () => {
   init();
 
   function init() {
-    if (typeof pdfjsLib !== 'undefined') {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    }
     loadState();
     setupEventListeners();
     updateUIState();
     setupDraggableText();
+    fitZoomForSmallScreen();
     triggerAllRenders();
     adjustZoom();
     if (el.inputOpenaiKey) el.inputOpenaiKey.value = loadApiKey();
+    // 網頁字型是用到才下載，下載完成後要重畫一次，不然畫布會先用系統預設字型
+    if (document.fonts) document.fonts.addEventListener('loadingdone', triggerAllRenders);
+  }
+
+  // 手機等小螢幕：自動把縮放調小，讓最寬的預覽卡片剛好塞進畫面寬度
+  function fitZoomForSmallScreen() {
+    // 手機瀏覽器遇到內容太寬會把 innerWidth 撐大，所以同時參考實體螢幕寬度取較小值
+    const vw = Math.min(window.innerWidth, screen.width || window.innerWidth);
+    if (vw >= 900) return;
+    const maxW = Math.max(...PLATFORM_DEVICES[state.platform].map(d => DEVICE_SPECS[d][state.orientation].width));
+    const available = vw - 32 - 32;   // 扣掉畫布區左右留白和卡片內距
+    state.zoom = Math.max(0.05, Math.min(state.zoom, available / maxW));
   }
 
   function loadApiKey() {
@@ -239,9 +266,61 @@ document.addEventListener('DOMContentLoaded', () => {
     if (key) localStorage.setItem('playshot_openai_key', key);
     else localStorage.removeItem('playshot_openai_key');
   }
-  function getDalleSize(device) {
-    if (device === 'feature') return '1792x1024';
-    return state.orientation === 'portrait' ? '1024x1792' : '1792x1024';
+  // 生圖模型清單：依序嘗試，帳號沒有第一個模型的權限時自動改用下一個
+  // （dall-e-3 已於 2026-05-12 被 OpenAI 下架，改用 gpt-image 系列）
+  const IMAGE_MODELS = ['gpt-image-2', 'gpt-image-2.5-flare'];
+
+  // gpt-image 系列可自訂尺寸，規則：長寬都要是 16 的倍數、長寬比不超過 3:1。
+  // 這裡依裝置實際比例換算，總像素約 200 萬（畫質夠用、費用適中）
+  function getAiImageSize(device) {
+    const dim = DEVICE_SPECS[device][state.orientation];
+    const ratio = Math.min(3, Math.max(1 / 3, dim.width / dim.height)); // 長寬比限制在 1:3 ~ 3:1
+    const targetPixels = 2000000;
+    const w = Math.round(Math.sqrt(targetPixels * ratio) / 16) * 16;
+    const h = Math.round(Math.sqrt(targetPixels / ratio) / 16) * 16;
+    return `${w}x${h}`;
+  }
+
+  // 把 OpenAI 回傳的錯誤轉成白話訊息；fatal = 重試也沒用（Key 錯、額度用完、內容被擋）
+  function describeOpenAiError(status, apiErr) {
+    const code = apiErr?.code || '';
+    const raw = apiErr?.message || '';
+    if (status === 401) return { msg: 'API Key 無效，請確認是否貼錯或已被刪除', fatal: true };
+    if (code === 'insufficient_quota' || /quota|billing/i.test(raw)) return { msg: 'OpenAI 帳戶額度用完了，請到 OpenAI 後台儲值', fatal: true };
+    if (code === 'content_policy_violation' || code === 'moderation_blocked' || /safety|moderation/i.test(raw)) return { msg: 'Prompt 內容被 OpenAI 安全規則擋下，請換個描述方式', fatal: true };
+    if (status === 429) return { msg: '請求太頻繁，請稍等一分鐘再試', fatal: false };
+    if (status >= 500) return { msg: 'OpenAI 伺服器暫時有狀況，請稍後再試', fatal: false };
+    return { msg: raw || `HTTP ${status}`, fatal: false };
+  }
+
+  // 呼叫生圖 API：第一個模型沒權限（403）或不存在（404）時自動換下一個
+  let usableModelIdx = 0;   // 記住目前帳號能用的模型，後面的圖就不用再試一次沒權限的
+  async function requestAiImage(apiKey, prompt, size) {
+    for (let mi = usableModelIdx; mi < IMAGE_MODELS.length; mi++) {
+      const model = IMAGE_MODELS[mi];
+      const res = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        // gpt-image 系列固定回傳 base64，不能帶 response_format（帶了會報錯）
+        body: JSON.stringify({ model, prompt, n: 1, size, quality: 'medium' })
+      });
+      if (res.ok) {
+        usableModelIdx = mi;
+        const data = await res.json();
+        return data.data[0].b64_json;
+      }
+      const errData = await res.json().catch(() => ({}));
+      // 只有「這個模型用不了」才換下一個模型，其他錯誤直接往外丟
+      const modelUnavailable = res.status === 403 || res.status === 404 || errData.error?.code === 'model_not_found';
+      if (!modelUnavailable) {
+        const info = describeOpenAiError(res.status, errData.error);
+        throw Object.assign(new Error(info.msg), { fatal: info.fatal });
+      }
+      console.warn(`模型 ${model} 無法使用，改試下一個：`, errData.error?.message);
+    }
+    // 所有模型都沒權限，通常是 OpenAI 組織尚未完成驗證；下次重新從第一個模型試起
+    usableModelIdx = 0;
+    throw Object.assign(new Error('你的 OpenAI 帳號目前無法使用生圖模型，可能需要先到 OpenAI 後台完成組織驗證（Verify Organization）'), { fatal: true });
   }
 
   function extractDominantColors(imgEl, count) {
@@ -290,7 +369,17 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
-        localStorage.setItem('playshot_v2', JSON.stringify({
+        localStorage.setItem('playshot_v2', JSON.stringify(buildSnapshot()));
+      } catch (e) {
+        // 儲存空間不足或其他寫入失敗時提醒使用者，避免調整內容悄悄遺失
+        showToast('⚠️ 瀏覽器儲存空間不足，部分內容可能未保存', 'error');
+      }
+    }, 500);
+  }
+
+  // 把目前所有設定（含截圖、AI 圖）打包成一個物件，存檔和匯出設定檔都用它
+  function buildSnapshot() {
+    return {
           platform: state.platform,
           orientation: state.orientation, fitMode: state.fitMode,
           showDeviceFrame: state.showDeviceFrame, bgType: state.bgType,
@@ -310,18 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
           bgImageDataUrl: state.bgImageDataUrl,
           imageSource: state.imageSource,
           aiPrompt: state.aiPrompt,
+          aiPromptFeature: state.aiPromptFeature,
           aiStyle: state.aiStyle,
           aiSeed: state.aiSeed,
           aiCohesiveSeed: state.aiCohesiveSeed,
           aiDataUrls: state.aiDataUrls,
           iconDataUrl: state.iconDataUrl,
-          iconColors: state.iconColors
-        }));
-      } catch (e) {
-        // 儲存空間不足或其他寫入失敗時提醒使用者，避免調整內容悄悄遺失
-        showToast('⚠️ 瀏覽器儲存空間不足，部分內容可能未保存', 'error');
-      }
-    }, 500);
+          iconColors: state.iconColors,
+          textAlign: state.textAlign
+    };
   }
 
   function loadState() {
@@ -338,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'textMargin_bottom','showTextShadow_bottom','translations_bottom',
         'currentLangPreview','zoom','layoutMode','bgPattern','bgOverlayOpacity',
         'imageSource','aiPrompt','aiPromptFeature','aiStyle','aiSeed','aiCohesiveSeed',
-        'iconDataUrl','iconColors'
+        'iconDataUrl','iconColors','textAlign'
       ];
       keys.forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
 
@@ -409,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     el.toastIcon.setAttribute('data-lucide', icons[type] || 'info');
     if (typeof lucide !== 'undefined') lucide.createIcons({ attrs: { class: 'lucide-icon' }, nameAttr: 'data-lucide' });
     clearTimeout(el._toastTimer);
-    el._toastTimer = setTimeout(() => el.toast.classList.remove('show'), 3000);
+    el._toastTimer = setTimeout(() => el.toast.classList.remove('show'), type === 'error' ? 6000 : 3000);
   }
 
   // ── Screenshot Strip ───────────────────────────────────────────
@@ -477,15 +563,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el.aiPrompt) {
       el.aiPrompt.addEventListener('input', e => { state.aiPrompt = e.target.value; saveState(); });
       el.selectAiStyle.addEventListener('change', e => { state.aiStyle = e.target.value; saveState(); });
-      el.aiSeed.addEventListener('input', e => { state.aiSeed = parseInt(e.target.value) || 42; saveState(); });
-      el.toggleCohesiveSeed.addEventListener('change', e => { state.aiCohesiveSeed = e.target.checked; saveState(); });
-      el.btnRandSeed.addEventListener('click', () => {
-        const seed = Math.floor(Math.random() * 1000000);
-        state.aiSeed = seed;
-        el.aiSeed.value = seed;
-        saveState();
-        showToast(`已產生隨機 Seed: ${seed}`, 'success');
-      });
       el.btnGenerateAi.addEventListener('click', generateAIImages);
       document.getElementById('btn-clear-prompt')?.addEventListener('click', () => {
         el.aiPrompt.value = '';
@@ -737,6 +814,51 @@ document.addEventListener('DOMContentLoaded', () => {
     el.btnExportSingles.forEach(btn => btn.addEventListener('click', () => exportSingleImage(btn.getAttribute('data-device'))));
     el.btnExportAll.addEventListener('click', exportAllZipped);
 
+    el.selectTextAlign?.addEventListener('change', e => { state.textAlign = e.target.value; triggerAllRenders(); saveState(); });
+
+    // 恢復預設樣式：只重設排版/背景/字型等外觀，保留截圖、文字內容、翻譯和 AI 圖
+    el.btnResetStyle?.addEventListener('click', () => {
+      if (!confirm('要把排版、背景、字型、顏色恢復成預設值嗎？\n截圖、文字內容、翻譯和 AI 圖片都會保留。')) return;
+      Object.keys(DEFAULT_STYLE).forEach(k => { state[k] = DEFAULT_STYLE[k]; });
+      state.uploadedBgImage = null; state.bgImageDataUrl = null; state.bgImageFileName = '';
+      el.bgImagePreview.style.display = 'none';
+      el.bgImagePrompt.style.display = 'flex';
+      updateUIState(); triggerAllRenders(); saveState();
+      showToast('已恢復預設樣式', 'success');
+    });
+
+    // 下載設定檔：把目前所有內容存成 .json，換電腦或改天可以讀回來
+    el.btnSaveProject?.addEventListener('click', () => {
+      const json = JSON.stringify({ app: 'playshot-studio', version: 1, data: buildSnapshot() });
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      const a = document.createElement('a');
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      a.download = `playshot_設定_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+      a.href = url; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showToast('設定檔已下載', 'success');
+    });
+
+    // 讀取設定檔：寫回瀏覽器儲存區後重新整理，沿用原本的還原流程
+    el.btnLoadProject?.addEventListener('click', () => el.projectFileInput?.click());
+    el.projectFileInput?.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        if (parsed?.app !== 'playshot-studio' || !parsed.data) throw new Error('format');
+        if (!confirm('讀取設定檔會覆蓋目前畫面上的所有內容，確定嗎？')) return;
+        localStorage.setItem('playshot_v2', JSON.stringify(parsed.data));
+        location.reload();
+      } catch (err) {
+        showToast(err.name === 'QuotaExceededError'
+          ? '設定檔太大（截圖太多），瀏覽器存不下'
+          : '這不是 PlayShot 的設定檔，或檔案已損毀', 'error');
+      }
+    });
+
     if (el.btnReset) {
       el.btnReset.addEventListener('click', () => {
         if (!confirm('確定要清空所有內容嗎？截圖、文字、背景都會清除，API Key 會保留。')) return;
@@ -895,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fallback 1: Google Translate APIs (translate.googleapis.com)
     try {
       const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
         const data = await res.json();
         if (data?.[0]) return data[0].map(i => i[0]).join('');
@@ -907,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fallback 2: Google Translate API (translate.google.com)
     try {
       const url = `https://translate.google.com/translate_a/single?client=gtx&sl=zh-TW&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
         const data = await res.json();
         if (data?.[0]) return data[0].map(i => i[0]).join('');
@@ -919,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fallback 3: MyMemory API
     try {
       const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh-TW|${lang}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
         const data = await res.json();
         if (data?.responseData?.translatedText) {
@@ -1143,9 +1265,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── 文字排版起點 ──
-    let textX = W/2, textAlign = 'center', textMaxW = W - 200;
-    if (state.layoutMode === 'left')  { textX = 80;            textAlign = 'left'; textMaxW = W*0.4-120; }
-    if (state.layoutMode === 'right') { textX = W*0.6+40;      textAlign = 'left'; textMaxW = W*0.4-120; }
+    // 先算出文字可用的區塊（左邊界 colX、寬度 textMaxW），再依對齊方式決定 X 座標
+    let colX = 100, textMaxW = W - 200, textAlign = 'center';
+    if (state.layoutMode === 'left')  { colX = 80;       textMaxW = W*0.4-120; textAlign = 'left'; }
+    if (state.layoutMode === 'right') { colX = W*0.6+40; textMaxW = W*0.4-120; textAlign = 'left'; }
+    if (state.textAlign !== 'auto') textAlign = state.textAlign;
+    const textX = textAlign === 'left' ? colX : textAlign === 'right' ? colX + textMaxW : colX + textMaxW / 2;
 
     // ── 上方文字 ──
     let topH = 0, topY = state.textMargin_top;
@@ -1395,6 +1520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     el.colorGradStart.value  = state.gradStart;
     el.colorGradEnd.value    = state.gradEnd;
     el.selectLayoutMode.value = state.layoutMode;
+    if (el.selectTextAlign) el.selectTextAlign.value = state.textAlign;
     el.selectBgPattern.value  = state.bgPattern;
     el.selectFitMode.value    = state.fitMode;
     el.toggleDeviceFrame.checked = state.showDeviceFrame;
@@ -1577,7 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const zipUrl = URL.createObjectURL(content);
       a.href = zipUrl;
       a.click();
-      URL.revokeObjectURL(zipUrl); // 觸發下載後立即釋放，避免記憶體洩漏
+      setTimeout(() => URL.revokeObjectURL(zipUrl), 10000); // 延後釋放：立刻釋放在部分瀏覽器會讓下載失敗
       showToast('ZIP 打包下載成功！', 'success');
     } catch (err) {
       console.error(err);
@@ -1654,6 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : PLATFORM_DEVICES[state.platform];
     let successCount = 0;
     const failed = [];
+    let lastError = null;   // 記住最後一次錯誤，結束時顯示白話原因
 
     const getDevicePrompt = (device) => {
       if (device === 'feature') {
@@ -1669,7 +1796,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showCanvasLoading(device, true);
 
       const devicePrompt = getDevicePrompt(device);
-      const size = getDalleSize(device);
+      const size = getAiImageSize(device);
 
       let loaded = false;
       for (let attempt = 0; attempt < 2 && !loaded; attempt++) {
@@ -1678,34 +1805,8 @@ document.addEventListener('DOMContentLoaded', () => {
           await new Promise(r => setTimeout(r, 2000));
         }
         try {
-          const res = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-              model: 'dall-e-3',
-              prompt: devicePrompt,
-              n: 1,
-              size: size,
-              quality: 'standard',
-              response_format: 'b64_json'
-            })
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            const msg = errData.error?.message || `HTTP ${res.status}`;
-            if (res.status === 401) {
-              showToast('API Key 錯誤，請確認後重試', 'error');
-              throw new Error('auth');
-            }
-            throw new Error(msg);
-          }
-
-          const data = await res.json();
-          const dataUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+          const b64 = await requestAiImage(apiKey, devicePrompt, size);
+          const dataUrl = `data:image/png;base64,${b64}`;
           state.aiDataUrls[device] = dataUrl;
 
           const img = new Image();
@@ -1719,13 +1820,19 @@ document.addEventListener('DOMContentLoaded', () => {
           successCount++;
         } catch (err) {
           console.warn(`Device ${device} attempt ${attempt + 1} failed:`, err);
-          if (err.message === 'auth') break;
+          lastError = err;
+          if (err.fatal) break;   // Key 錯、額度用完等，重試也沒用
         }
       }
 
       showCanvasLoading(device, false);
       if (!loaded) failed.push(device);
       triggerAllRenders();
+      // 致命錯誤：後面的裝置也一定會失敗，直接停止，省得白等
+      if (lastError?.fatal) {
+        failed.push(...devices.slice(i + 1));
+        break;
+      }
     }
 
     if (state.imageSource === 'hybrid' && state.aiImages['tablet7']) {
@@ -1739,14 +1846,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (failed.length === 0) {
       showToast('🎉 生成成功！', 'success');
     } else if (successCount > 0) {
-      showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗，可重新點擊生成`, 'success');
+      showToast(`⚠️ ${successCount} 張成功，${failed.join('、')} 失敗：${lastError?.message || '可重新點擊生成'}`, 'error');
     } else {
-      showToast('生成失敗，請確認 API Key 是否正確', 'error');
+      showToast(`生成失敗：${lastError?.message || '請確認 API Key 是否正確'}`, 'error');
     }
 
     el.btnGenerateAi.disabled = false;
     el.btnGenerateAi.innerHTML = '<i data-lucide="sparkles"></i> 一鍵生成所有規格圖片';
     if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  // PDF 解析套件約 300KB，只有使用者真的匯入 PDF 時才下載，讓首頁開得比較快
+  let pdfJsPromise = null;
+  function loadPdfJs() {
+    if (typeof pdfjsLib !== 'undefined') return Promise.resolve();
+    if (!pdfJsPromise) {
+      pdfJsPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
+        s.onload = () => {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+          resolve();
+        };
+        s.onerror = () => { pdfJsPromise = null; reject(new Error('PDF 解析套件下載失敗，請檢查網路後再試')); };
+        document.head.appendChild(s);
+      });
+    }
+    return pdfJsPromise;
   }
 
   async function handleImportedFile(file) {
@@ -1773,9 +1899,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsText(file);
       } else if (ext === 'pdf') {
-        if (typeof pdfjsLib === 'undefined') {
-          throw new Error('PDF 解析庫未載入，請重新整理頁面');
-        }
+        await loadPdfJs();
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let text = '';
@@ -1850,7 +1974,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
               role: 'system',
               content: `你是一個專業的 App 商店展示圖生圖 Prompt 專家。
-請根據使用者提供的 App 介紹或文章內容，提取其核心功能與視覺主題，並生成 3 個最適合用於 AI 繪圖模型 (如 DALL-E 3) 生圖的英文 Prompt。這些圖片會被用作 Google Play 商店的展示宣傳圖 (Screenshots)。
+請根據使用者提供的 App 介紹或文章內容，提取其核心功能與視覺主題，並生成 3 個最適合用於 AI 繪圖模型 (如 GPT Image) 生圖的英文 Prompt。這些圖片會被用作 Google Play 商店的展示宣傳圖 (Screenshots)。
 
 請遵循以下指導原則：
 1. 每組 Prompt 必須以英文書寫，且聚焦在「一個清晰的 App 主題畫面或介面插畫」，例如：手機上的圖表、簡約儀表板、手繪風格卡片等。
@@ -1859,9 +1983,9 @@ document.addEventListener('DOMContentLoaded', () => {
 4. 請務必輸出合規的 JSON 物件，結構如下（不要包裝在 markdown 的 \`\`\`json 標記中，僅輸出 JSON 字串）：
 {
   "prompts": [
-    "DALL-E 3 compatible prompt 1 (in English, focus on visual description, features, and style)",
-    "DALL-E 3 compatible prompt 2 (in English, focus on visual description, features, and style)",
-    "DALL-E 3 compatible prompt 3 (in English, focus on visual description, features, and style)"
+    "Image generation prompt 1 (in English, focus on visual description, features, and style)",
+    "Image generation prompt 2 (in English, focus on visual description, features, and style)",
+    "Image generation prompt 3 (in English, focus on visual description, features, and style)"
   ],
   "explanations": [
     "方案一：[繁體中文視覺設計概念，如：繽紛記帳介面與懸浮的 3D 錢包氣球，現代簡約風格]",
@@ -1882,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `HTTP ${res.status}`);
+        throw new Error(describeOpenAiError(res.status, errData.error).msg);
       }
 
       const data = await res.json();
@@ -1902,11 +2026,14 @@ document.addEventListener('DOMContentLoaded', () => {
         card.innerHTML = `
           <div class="helper-suggestion-header">
             <i data-lucide="sparkles" style="width:12px;height:12px;display:inline-block;vertical-align:middle;"></i>
-            <span>${explanation}</span>
+            <span></span>
           </div>
-          <div class="helper-suggestion-desc">${prompt}</div>
+          <div class="helper-suggestion-desc"></div>
           <span style="font-size:0.65rem; color:#818cf8; text-align:right; font-weight:600; margin-top:2px;">點擊套用此 Prompt 👆</span>
         `;
+        // AI 回傳的文字用 textContent 填入，避免內容夾帶 HTML 被瀏覽器執行
+        card.querySelector('.helper-suggestion-header span').textContent = explanation;
+        card.querySelector('.helper-suggestion-desc').textContent = prompt;
 
         card.addEventListener('click', () => {
           el.aiPrompt.value = prompt;

@@ -10,7 +10,14 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://playshotstudio.maxteng.org/">
   <link rel="canonical" href="https://playshotstudio.maxteng.org/">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://playshotstudio.maxteng.org/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://playshotstudio.maxteng.org/og-image.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#1a1d2e">
   <meta name="twitter:title" content="PlayShot Studio｜App 上架截圖產生器（Android + iOS）">
   <meta name="twitter:description" content="免費線上工具，一鍵生成 Android／iOS 商店截圖與主視覺橫幅，支援 AI 生成背景與多語言排版。">
   <meta name="google-site-verification" content="bFOOjY-Jiv8nz-gyWNIiwLq9Ypd6j3GTIvrlajk4Rp8">
@@ -26,14 +33,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Lucide Icons（鎖定版本，避免官方改版讓圖示突然壞掉） -->
+  <script defer src="https://unpkg.com/lucide@1.55.0/dist/umd/lucide.min.js"></script>
   <!-- JSZip for batch download -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- PDF.js for client-side PDF parsing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- PDF.js 改成匯入 PDF 時才下載（見 app.js loadPdfJs） -->
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
   <div class="app-container">
@@ -42,16 +48,26 @@
       <div class="logo-area">
         <div class="logo-icon"><i data-lucide="smartphone"></i></div>
         <div>
-          <h1>PlayShot Studio</h1>
+          <h1>PlayShot Studio <span class="app-version">v2.6</span></h1>
           <p>Android／iOS 商店截圖一鍵生成工具</p>
         </div>
       </div>
       <div class="header-actions">
+        <button id="btn-save-project" class="btn btn-ghost" title="下載設定檔（.json，可之後讀回來）">
+          <i data-lucide="save"></i>
+        </button>
+        <button id="btn-load-project" class="btn btn-ghost" title="讀取設定檔">
+          <i data-lucide="folder-open"></i>
+        </button>
+        <input type="file" id="project-file-input" accept=".json,application/json" style="display:none;">
+        <button id="btn-reset-style" class="btn btn-ghost" title="恢復預設樣式（截圖和文字保留）">
+          <i data-lucide="paintbrush"></i>
+        </button>
+        <button id="btn-reset" class="btn btn-ghost" title="清空全部內容（API Key 保留）">
+          <i data-lucide="trash-2"></i>
+        </button>
         <button id="btn-export-all" class="btn btn-primary">
           <i data-lucide="download-cloud"></i> 一鍵導出所有規格 & 語言 (ZIP)
-        </button>
-        <button id="btn-reset" class="btn btn-ghost" title="清空內容（API Key 保留）">
-          <i data-lucide="rotate-ccw"></i>
         </button>
       </div>
     </header>
@@ -214,8 +230,7 @@
               <p id="icon-colors-text" class="mode-hint" style="margin-top:6px; display:none;"></p>
             </div>
 
-            <div class="control-row">
-              <div class="control-group half">
+            <div class="control-group">
                 <label for="select-ai-style">藝術風格</label>
                 <select id="select-ai-style">
                   <option value="app mockup, modern UI, clean design, 3d render" selected>現代應用 (UI 3D)</option>
@@ -226,21 +241,6 @@
                   <option value="photorealistic realistic high quality professional camera shot">寫實攝影</option>
                   <option value="none">無風格預設</option>
                 </select>
-              </div>
-              <div class="control-group half">
-                <label for="ai-seed">Seed</label>
-                <div style="display:flex; gap:6px; align-items:center;">
-                  <input type="number" id="ai-seed" value="42" style="text-align:center;">
-                  <button id="btn-rand-seed" class="btn btn-secondary" type="button" style="padding:8px;width:34px;height:34px;flex-shrink:0;" title="隨機 Seed"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
-                </div>
-              </div>
-            </div>
-
-            <div class="control-group">
-              <label class="checkbox-label" style="margin-top:0;">
-                <input type="checkbox" id="toggle-cohesive-seed" checked>
-                使用相同 Seed 保持風格一致
-              </label>
             </div>
 
             <div class="control-group" id="hybrid-feature-group" style="display:none;">
@@ -254,7 +254,7 @@
                 <input type="password" id="input-openai-key" placeholder="sk-..." autocomplete="off" style="flex:1;">
                 <button id="btn-toggle-key" class="btn btn-secondary" type="button" style="padding:8px;width:34px;height:34px;flex-shrink:0;" title="顯示/隱藏 Key"><i data-lucide="eye" style="width:13px;height:13px;"></i></button>
               </div>
-              <p style="font-size:0.72rem; color:#9ca3af; margin-top:4px;">僅存於本機 localStorage，不會外傳</p>
+              <p style="font-size:0.72rem; color:#9ca3af; margin-top:4px;">僅存於本機 localStorage，只會直接送到 OpenAI。生圖使用 gpt-image-2 模型</p>
             </div>
 
             <button id="btn-generate-ai" class="btn btn-primary btn-full" style="margin-top:8px;" type="button">
@@ -276,6 +276,15 @@
                 <option value="vertical" selected>上下加註（垂直居中）</option>
                 <option value="left">左側加註（Mockup 居右）</option>
                 <option value="right">右側加註（Mockup 居左）</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="select-text-align">文字對齊</label>
+              <select id="select-text-align">
+                <option value="auto" selected>自動（依排版樣式）</option>
+                <option value="left">靠左</option>
+                <option value="center">置中</option>
+                <option value="right">靠右</option>
               </select>
             </div>
             <div class="control-row">
@@ -629,8 +638,8 @@
     <span id="toast-message">提示訊息</span>
   </div>
 
-  <script src="app.js?v=10"></script>
-  <script src="ads-config.js"></script>
-  <script src="ads.js"></script>
+  <script defer src="app.js?v=11"></script>
+  <script defer src="ads-config.js"></script>
+  <script defer src="ads.js"></script>
 </body>
 </html>

@@ -34,6 +34,7 @@
 
 - **畫布方向**：直式 / 橫式切換
 - **排版樣式**：上下加註（垂直居中）/ 左側加註 / 右側加註
+- **文字對齊**：自動（依排版樣式）/ 靠左 / 置中 / 靠右
 - **截圖適配**：Contain（完整包含）/ Cover（填滿）/ Stretch（拉伸）
 - **手機外框**：可開關顯示
 
@@ -62,8 +63,23 @@
 ### 多語系支援
 
 - 支援語言：繁體中文、English、日本語、한국어
-- 一鍵自動翻譯（呼叫翻譯 API）
-- 右側對照編輯器，翻譯後可直接手動修改，畫布即時更新
+- 一鍵自動翻譯：有填 OpenAI API Key 時用 gpt-4o-mini 翻譯；沒填則依序改用 Google 翻譯免費線路 → MyMemory（免費線路常被限流，品質與穩定度較差）
+- 「翻譯」分頁對照編輯器，翻譯後可直接手動修改，畫布即時更新
+
+### AI 生圖（混合模式 / 全 AI 模式）
+
+- 使用 OpenAI `gpt-image-2`，帳號沒有權限時自動改用 `gpt-image-2.5-flare`（`app.js` 的 `IMAGE_MODELS`）
+- 舊的 `dall-e-3` 已於 2026-05-12 被 OpenAI 下架
+- 生圖尺寸依各裝置實際長寬比換算（總像素約 200 萬，長寬為 16 的倍數），再由畫布裁切成正式尺寸
+- API Key 只存在使用者自己的瀏覽器 localStorage，直接送到 OpenAI，不經過任何伺服器
+- 錯誤訊息白話化：Key 無效 / 額度用完 / 內容被擋 / 帳號未驗證會直接停止並說明原因
+
+### 設定管理
+
+- **自動儲存**：所有設定、截圖、AI 圖自動存在瀏覽器（localStorage）
+- **下載 / 讀取設定檔**：Header 的 💾 / 📂 按鈕，存成 `.json` 可換電腦或日後還原
+- **恢復預設樣式**：🖌 按鈕，只重設排版/背景/字型/顏色，截圖與文字內容保留
+- **清空全部**：🗑 按鈕，API Key 保留
 
 ### 匯出
 
@@ -79,7 +95,8 @@
 | 語言 | 純 HTML + CSS + JavaScript（無框架） |
 | 圖片渲染 | HTML5 Canvas API |
 | ZIP 打包 | JSZip 3.10.1 |
-| 圖示 | Lucide Icons（CDN） |
+| 圖示 | Lucide Icons 1.55.0（CDN，鎖定版本） |
+| PDF 解析 | PDF.js 3.4.120（匯入 PDF 時才動態載入） |
 | 字型 | Google Fonts（Inter / Noto Sans TC/JP/KR / Outfit） |
 | 部署 | Vercel（靜態站） |
 
@@ -87,22 +104,20 @@
 
 ## 本地開發
 
-直接開啟 `index.html` 即可，或啟動簡易 HTTP Server：
+啟動簡易 HTTP Server（主頁檔名是 `playshot-studio.html`）：
 
 ```bash
 cd "d:\Gemini Antigravity Project\playshot-studio"
 python -m http.server 8000
-# 開啟 http://localhost:8000
+# 開啟 http://localhost:8000/playshot-studio.html
 ```
 
 ---
 
 ## 部署更新
 
-```bash
-cd "d:\Gemini Antigravity Project\playshot-studio"
-vercel --prod
-```
+GitHub（TengRip/playshot-studio）已連結 Vercel，`git push` 到 main 會自動部署正式站。
+改了 `app.js` / `styles.css` 記得同步更新 `playshot-studio.html` 裡的 `?v=` 版本號，避免瀏覽器吃到舊快取。
 
 ---
 
@@ -116,6 +131,9 @@ playshot-studio/
 ├── ads-config.js          # AdSense 客戶 ID／廣告版位設定（安全預設，未填不啟用）
 ├── ads.js                 # 讀取 ads-config.js 並插入廣告標籤
 ├── ads.txt                # AdSense 收益驗證用
+├── favicon.svg            # 網站小圖示
+├── apple-touch-icon.png   # iPhone 加到主畫面的圖示（180×180）
+├── og-image.png           # 分享到 LINE/FB 時的預覽圖（1200×630）
 ├── robots.txt             # 搜尋引擎爬蟲規則
 └── README.md              # 本文件
 ```
@@ -128,16 +146,17 @@ playshot-studio/
 
 ### UI / 操作體驗
 
-- [ ] **預設值重設按鈕**：新增一鍵「恢復預設設定」，避免調亂後找不回來
-- [ ] **設定存檔 / 讀取**：將目前狀態儲存為 JSON，下次開啟可還原（localStorage 或下載檔案）
+- [x] **預設值重設按鈕**：Header 🖌「恢復預設樣式」，見 v2.6
+- [x] **設定存檔 / 讀取**：Header 💾 / 📂 下載與讀取 `.json` 設定檔，見 v2.6
+- [x] **手機版面**：900px 以下改上下堆疊、自動縮放，見 v2.6
 - [x] **縮圖即時預覽速度**：改用 `requestAnimationFrame` 合併同一畫面內的多次重繪呼叫，拖曳滑桿/文字時不再每次事件都重繪 4 張全解析度 Canvas
 
 ### 功能擴充
 
 - [x] **App Store 規格支援**：新增 iOS App Store 所需尺寸（iPhone 6.9"、iPad 13"），見 v2.4
 - [ ] **Logo 浮水印**：支援在畫面角落放置 App icon 或品牌 Logo
-- [ ] **文字對齊方式**：目前固定居中，可新增左對齊 / 右對齊選項
-- [ ] **多語言自動翻譯 API key**：目前翻譯功能若失效，需確認 API 串接是否正常
+- [x] **文字對齊方式**：自動 / 靠左 / 置中 / 靠右，見 v2.6
+- [ ] **免費翻譯線路不穩**：沒填 API Key 時走 Google 翻譯非公開網址，2026-10-12 實測回 429（請求過多）；長期解法是架 proxy 或改用正式翻譯 API
 - [ ] **更多字型**：增加英文手寫體或日文明朝體選項
 
 ### 背景裝飾
@@ -146,7 +165,7 @@ playshot-studio/
 
 ### 技術負債
 
-- [ ] `index.html` 內 `<script src="app.js?v=3">` 的版本號為手動管理，部署時記得更新（目前 Vercel 會自動快取破除，影響不大）
+- [ ] `playshot-studio.html` 內 `app.js?v=` / `styles.css?v=` 的版本號為手動管理，改檔時記得一起更新
 - [ ] CSS 與 JS 未做 minify，若效能有需求可加入簡單的 build 流程
 
 ---
@@ -164,3 +183,4 @@ playshot-studio/
 | v2.3 | 2026-08-26 | **接自訂網域＋SEO/GA4**：接上 `playshotstudio.maxteng.org`（原 `playshot-studio.vercel.app`），新增 SEO meta／OG／Twitter 標籤、`ads.txt`、`robots.txt`，GA4 資源「PlayShot Studio」（Measurement ID `G-EE3EHJ0DK3`），Search Console 已用 HTML 標記驗證擁有權並要求建立索引。 |
 | v2.4 | 2026-08-26 | **新增 iOS App Store 尺寸支援＋平台切換**：`DEVICE_SPECS` 新增 iPhone（1320×2868）／iPad（2064×2752），新增「平台」切換鈕（Android/iOS），切換後預覽卡片、解析度標籤、AI 生成、ZIP 匯出、裝置外框樣式（iPhone 用瀏海、iPad 用平板圓點鏡頭）全部連動；iOS 無 Feature Graphic 概念，切 iOS 時該卡片與其 AI prompt 欄位自動隱藏；混合模式在 iOS 對應改為「iPhone 上傳＋iPad AI 生成」；`state.platform` 存入 localStorage，重新整理保留選擇。網站標題／meta／header 文案同步改為 Android + iOS 並列，不再寫死 Google Play。修正一個 TDZ bug（`CANVAS_BY_DEVICE` 宣告在 `init()` 呼叫之後導致 `ReferenceError`）。 |
 | v2.5 | 2026-08-26 | **混合模式說明文字改白話**：原文案「iPhone 格使用上傳截圖，iPad 格由 AI 生成」使用者反映看不懂，改成完整句子說明「哪張圖是你上傳的、哪張是 AI 生成的」及其原因。 |
+| v2.6 | 2026-10-12 | **全面優化**：① AI 生圖從已下架的 `dall-e-3` 換成 `gpt-image-2`（沒權限自動改 `gpt-image-2.5-flare`，並記住可用模型），尺寸依裝置比例換算，錯誤訊息白話化（Key 無效／額度用完／內容被擋會立即停止）；移除新模型不支援的 Seed 欄位。② 手機版面：900px 以下上下堆疊、預覽卡片不超出螢幕、自動調整縮放。③ 新增文字對齊（自動/靠左/置中/靠右）、恢復預設樣式、下載/讀取設定檔。④ 效能：Lucide 鎖 1.55.0、外部腳本改 defer、PDF.js 改匯入 PDF 時才載入、字型下載完自動重繪畫布。⑤ 門面：favicon、apple-touch-icon、og:image 分享預覽圖。⑥ 小修：Feature Graphic 專屬 Prompt 原本沒存檔、ZIP 下載在部分瀏覽器失敗（過早釋放網址）、AI Prompt 助手結果改用純文字顯示避免夾帶 HTML、免費翻譯線路加 8 秒逾時。 |
