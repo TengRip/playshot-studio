@@ -6,6 +6,8 @@
 
 **線上版本：** https://playshotstudio.maxteng.org
 
+> **English:** PlayShot Studio is a free, browser-only tool that helps indie developers generate App Store and Google Play screenshots in the exact sizes each store requires (iPhone, iPad, Android phones, 7"/10" tablets, and the Play feature graphic). No backend, no install, no sign-up — everything runs client-side and exports a ready-to-upload ZIP. Licensed under the [MIT License](LICENSE).
+
 ---
 
 ## 功能總覽
@@ -184,3 +186,11 @@ playshot-studio/
 | v2.4 | 2026-08-26 | **新增 iOS App Store 尺寸支援＋平台切換**：`DEVICE_SPECS` 新增 iPhone（1320×2868）／iPad（2064×2752），新增「平台」切換鈕（Android/iOS），切換後預覽卡片、解析度標籤、AI 生成、ZIP 匯出、裝置外框樣式（iPhone 用瀏海、iPad 用平板圓點鏡頭）全部連動；iOS 無 Feature Graphic 概念，切 iOS 時該卡片與其 AI prompt 欄位自動隱藏；混合模式在 iOS 對應改為「iPhone 上傳＋iPad AI 生成」；`state.platform` 存入 localStorage，重新整理保留選擇。網站標題／meta／header 文案同步改為 Android + iOS 並列，不再寫死 Google Play。修正一個 TDZ bug（`CANVAS_BY_DEVICE` 宣告在 `init()` 呼叫之後導致 `ReferenceError`）。 |
 | v2.5 | 2026-08-26 | **混合模式說明文字改白話**：原文案「iPhone 格使用上傳截圖，iPad 格由 AI 生成」使用者反映看不懂，改成完整句子說明「哪張圖是你上傳的、哪張是 AI 生成的」及其原因。 |
 | v2.6 | 2026-10-12 | **全面優化**：① AI 生圖從已下架的 `dall-e-3` 換成 `gpt-image-2`（沒權限自動改 `gpt-image-2.5-flare`，並記住可用模型），尺寸依裝置比例換算，錯誤訊息白話化（Key 無效／額度用完／內容被擋會立即停止）；移除新模型不支援的 Seed 欄位。② 手機版面：900px 以下上下堆疊、預覽卡片不超出螢幕、自動調整縮放。③ 新增文字對齊（自動/靠左/置中/靠右）、恢復預設樣式、下載/讀取設定檔。④ 效能：Lucide 鎖 1.55.0、外部腳本改 defer、PDF.js 改匯入 PDF 時才載入、字型下載完自動重繪畫布。⑤ 門面：favicon、apple-touch-icon、og:image 分享預覽圖。⑥ 小修：Feature Graphic 專屬 Prompt 原本沒存檔、ZIP 下載在部分瀏覽器失敗（過早釋放網址）、AI Prompt 助手結果改用純文字顯示避免夾帶 HTML、免費翻譯線路加 8 秒逾時。 |
+| v2.7 | 2026-10-21 | **正式開源**：新增 MIT 授權（`LICENSE`），README 補英文簡介與授權說明。 |
+
+---
+
+## 授權 License
+
+本專案採用 [MIT License](LICENSE) 開源。
+This project is open source under the [MIT License](LICENSE). Copyright (c) 2026 Max Teng.
